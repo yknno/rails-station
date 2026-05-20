@@ -8,12 +8,12 @@ OIDC (OpenID Connect) プロバイダー（OP）とメインターゲットア�
 
 ```mermaid
 graph TD
-    Browser[ブラウザ] <--> RP[Relying Party: rp:3001]
-    Browser <--> OP[OIDC Provider: op:3000]
-    Browser <--> Hydra[Ory Hydra: localhost:4444]
-    OP <--> HydraAdmin[Ory Hydra Admin API: hydra:4445]
-    RP <--> HydraAdmin
-    RP <--> MySQL[(MySQL: mysql:3306)]
+    Browser["ブラウザ"] <--> RP["Relying Party (rp:3001)"]
+    Browser <--> OP["OIDC Provider (op:3000)"]
+    Browser <--> Hydra["Ory Hydra (localhost:4444/4445)"]
+    OP <--> Hydra
+    RP <--> Hydra
+    Hydra <--> MySQL[("MySQL (mysql:3306)")]
     OP <--> MySQL
 ```
 
