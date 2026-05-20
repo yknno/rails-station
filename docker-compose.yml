@@ -1,0 +1,55 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: rails-station-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker-init/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  hydra-migrate:
+    image: oryd/hydra:v2.2.0
+    container_name: rails-station-hydra-migrate
+    environment:
+      - DSN=mysql://root:rootpassword@tcp(mysql:3306)/hydra?parseTime=true
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: migrate sql --yes "mysql://root:rootpassword@tcp(mysql:3306)/hydra?parseTime=true"
+    restart: on-failure
+
+  hydra:
+    image: oryd/hydra:v2.2.0
+    container_name: rails-station-hydra
+    restart: always
+    ports:
+      - "4444:4444" # Public API
+      - "4445:4445" # Admin API
+    environment:
+      - DSN=mysql://root:rootpassword@tcp(mysql:3306)/hydra?parseTime=true
+      - SECRETS_SYSTEM=this_is_a_very_secret_system_secret_key_32_chars
+      - URLS_SELF_ISSUER=http://localhost:4444/
+      - URLS_LOGIN=http://localhost:3000/login
+      - URLS_CONSENT=http://localhost:3000/consent
+      - SERVE_PUBLIC_PORT=4444
+      - SERVE_ADMIN_PORT=4445
+      - SERVE_PUBLIC_HOST=0.0.0.0
+      - SERVE_ADMIN_HOST=0.0.0.0
+      - LOG_LEVEL=debug
+      - OIDC_SUBJECT_TYPES_SUPPORTED=public
+    depends_on:
+      hydra-migrate:
+        condition: service_completed_successfully
+    command: serve all --dev
+
+volumes:
+  mysql-data:

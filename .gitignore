@@ -1,0 +1,23 @@
+# Logs
+/log/*.log
+/*.log
+
+# Antigravity CLI internal directory
+/.antigravitycli/
+
+# IDEs and editors
+/.idea/
+/.vscode/
+/*.swp
+/*.swo
+
+# Docker / DB local data (if any)
+/mysql-data/
+
+# Rails temporary files (will be inside subdirectories, but let's be safe)
+**/tmp/
+**/log/
+**/public/assets
+**/.sass-cache
+**/node_modules/
+**/.DS_Store
