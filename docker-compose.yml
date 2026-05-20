@@ -71,6 +71,8 @@ services:
         condition: service_healthy
       hydra:
         condition: service_started
+    volumes:
+      - ./op:/app
 
   rp:
     build:
@@ -88,6 +90,8 @@ services:
     depends_on:
       hydra:
         condition: service_started
+    volumes:
+      - ./rp:/app
 
 
 
