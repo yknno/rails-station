@@ -7,18 +7,16 @@ class SessionsController < ApplicationController
 
   def create
     auth = request.env['omniauth.auth']
+    Rails.logger.debug "=== OIDC Auth Hash: #{auth.inspect} ==="
     
-    # Store user details and token info in session
+    # Store only essential attributes in session to keep cookie size small (under 4KB limit)
     session[:user_email] = auth.info.email
-    session[:user_info] = auth.info
-    session[:id_token] = auth.extra.raw_info if auth.extra.present?
-    
-    # Store OIDC specific logout attributes
     session[:raw_id_token] = auth.credentials.id_token if auth.credentials.present?
     if auth.extra.present? && auth.extra.raw_info.present?
       session[:sid] = auth.extra.raw_info[:sid] || auth.extra.raw_info['sid']
     end
     
+    Rails.logger.debug "=== OIDC Session values set: #{session.to_hash.inspect} ==="
     redirect_to root_path, notice: "Logged in successfully via OIDC!"
   end
 
