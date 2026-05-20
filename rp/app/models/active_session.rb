@@ -8,7 +8,16 @@ class ActiveSession < ApplicationRecord
 
   def claims
     return {} if raw_id_token.blank?
+    @claims ||= decode_and_verify_id_token
+  end
 
+  def user_email
+    claims["email"]
+  end
+
+  private
+
+  def decode_and_verify_id_token
     jwks = Rails.cache.fetch("oidc_jwks", expires_in: 24.hours) do
       oidc = Rails.configuration.x.oidc
       begin
@@ -39,9 +48,5 @@ class ActiveSession < ApplicationRecord
       Rails.logger.error "ActiveSession ID token verification failed: #{e.message}"
       {}
     end
-  end
-
-  def user_email
-    claims["email"]
   end
 end
