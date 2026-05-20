@@ -21,7 +21,7 @@ class OryHydraService
       remember: true,
       remember_for: 3600
     }
-    response = @conn.put("/admin/oauth2/auth/requests/login/accept", payload, { login_challenge: challenge })
+    response = @conn.put("/admin/oauth2/auth/requests/login/accept?login_challenge=#{CGI.escape(challenge)}", payload)
     raise "Failed to accept login request: #{response.status} #{response.body}" unless response.success?
     response.body
   end
@@ -31,7 +31,7 @@ class OryHydraService
       error: "login_rejected",
       error_description: reason
     }
-    response = @conn.put("/admin/oauth2/auth/requests/login/reject", payload, { login_challenge: challenge })
+    response = @conn.put("/admin/oauth2/auth/requests/login/reject?login_challenge=#{CGI.escape(challenge)}", payload)
     raise "Failed to reject login request: #{response.status} #{response.body}" unless response.success?
     response.body
   end
@@ -55,7 +55,7 @@ class OryHydraService
         }
       }
     }
-    response = @conn.put("/admin/oauth2/auth/requests/consent/accept", payload, { consent_challenge: challenge })
+    response = @conn.put("/admin/oauth2/auth/requests/consent/accept?consent_challenge=#{CGI.escape(challenge)}", payload)
     raise "Failed to accept consent request: #{response.status} #{response.body}" unless response.success?
     response.body
   end
@@ -65,7 +65,7 @@ class OryHydraService
       error: "consent_rejected",
       error_description: reason
     }
-    response = @conn.put("/admin/oauth2/auth/requests/consent/reject", payload, { consent_challenge: challenge })
+    response = @conn.put("/admin/oauth2/auth/requests/consent/reject?consent_challenge=#{CGI.escape(challenge)}", payload)
     raise "Failed to reject consent request: #{response.status} #{response.body}" unless response.success?
     response.body
   end
