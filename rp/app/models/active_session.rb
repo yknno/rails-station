@@ -32,7 +32,8 @@ class ActiveSession < ApplicationRecord
         aud: oidc.client_id,
         verify_aud: true,
         iss: oidc.issuer,
-        verify_iss: true
+        verify_iss: true,
+        verify_iat: true
       }).first
     rescue JWT::DecodeError => e
       Rails.logger.error "ActiveSession ID token verification failed: #{e.message}"

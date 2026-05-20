@@ -29,7 +29,8 @@ class SessionsController < ApplicationController
         aud: oidc.client_id,
         verify_aud: true,
         iss: oidc.issuer,
-        verify_iss: true
+        verify_iss: true,
+        verify_iat: true
       }).first
     rescue JWT::DecodeError => e
       redirect_to root_path, alert: "ID Token verification failed: #{e.message}"
@@ -94,7 +95,8 @@ class SessionsController < ApplicationController
       
       decoded_token = JWT.decode(logout_token, nil, true, {
         algorithms: ['RS256'],
-        jwks: jwk_set
+        jwks: jwk_set,
+        verify_iat: true
       }).first
 
       # Replay prevention using jti
