@@ -1,5 +1,9 @@
 Rails.application.config.middleware.use OmniAuth::Builder do
   oidc = Rails.configuration.x.oidc
+  
+  # Parse internal URL to prevent fallback to https:443 when discovery: false
+  internal_uri = URI(oidc.internal_url)
+
   provider :openid_connect, {
     name: :openid_connect,
     scope: [:openid, :profile, :email],
@@ -11,7 +15,10 @@ Rails.application.config.middleware.use OmniAuth::Builder do
       authorization_endpoint: oidc.authorization_endpoint,
       token_endpoint: "#{oidc.internal_url}/oauth2/token",
       userinfo_endpoint: "#{oidc.internal_url}/userinfo",
-      jwks_uri: oidc.jwks_uri
+      jwks_uri: oidc.jwks_uri,
+      scheme: internal_uri.scheme,
+      host: internal_uri.host,
+      port: internal_uri.port
     },
     issuer: oidc.issuer,
     discovery: false
