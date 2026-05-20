@@ -48,6 +48,25 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Logged in successfully via OIDC!", flash[:notice]
   end
 
+  test "OIDC callback fails when JWKS cannot be fetched" do
+    OmniAuth.config.test_mode = true
+    OmniAuth.config.mock_auth[:openid_connect] = OmniAuth::AuthHash.new({
+      provider: "openid_connect",
+      uid: "1",
+      info: { email: "user@example.com" },
+      credentials: { id_token: "mock-id-token" }
+    })
+
+    Net::HTTP.stub(:get, ->(_uri) { raise StandardError, "network error" }) do
+      assert_no_difference "ActiveSession.count" do
+        post "/auth/openid_connect/callback"
+      end
+    end
+
+    assert_redirected_to root_path
+    assert_match /Identity provider keys are currently unavailable/, flash[:alert]
+  end
+
   test "backchannel logout destroys active session when token is valid" do
     ActiveSession.create!(
       sid: "session-123",

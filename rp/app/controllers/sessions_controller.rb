@@ -17,21 +17,17 @@ class SessionsController < ApplicationController
 
     oidc = Rails.configuration.x.oidc
 
-    # Fetch JWKS and verify the ID token signature & standard claims
+    # Fetch JWKS and verify the ID token signature & standard claims via OidcService
     begin
-      jwks_response = Net::HTTP.get(URI(oidc.jwks_uri))
-      jwks = JSON.parse(jwks_response)
-      jwk_set = JWT::JWK::Set.new(jwks)
-      
-      decoded_payload = JWT.decode(raw_id_token, nil, true, {
-        algorithms: ['RS256'],
-        jwks: jwk_set,
+      decoded_payload = OidcService.decode_and_verify(raw_id_token, {
         aud: oidc.client_id,
         verify_aud: true,
         iss: oidc.issuer,
-        verify_iss: true,
-        verify_iat: true
-      }).first
+        verify_iss: true
+      })
+    rescue OidcService::JwksUnavailableError => e
+      redirect_to root_path, alert: "Authentication failed: Identity provider keys are currently unavailable. Please try again later."
+      return
     rescue JWT::DecodeError => e
       redirect_to root_path, alert: "ID Token verification failed: #{e.message}"
       return
