@@ -14,6 +14,7 @@ Rails.application.routes.draw do
   post "auth/:provider/callback", to: "sessions#create"
   get "auth/failure", to: "sessions#failure"
   delete "logout", to: "sessions#destroy"
+  post "auth/backchannel_logout", to: "sessions#backchannel_logout"
 
   # Defines the root path route ("/")
   root "home#index"

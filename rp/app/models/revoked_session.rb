@@ -1,0 +1,2 @@
+class RevokedSession < ApplicationRecord
+end
