@@ -12,6 +12,7 @@ gem "puma", ">= 5.0"
 # OIDC Authentication
 gem "omniauth"
 gem "omniauth_openid_connect", "~> 0.8.0"
+gem "omniauth-rails_csrf_protection"
 
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
