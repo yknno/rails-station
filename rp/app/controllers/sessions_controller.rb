@@ -88,16 +88,8 @@ class SessionsController < ApplicationController
     oidc = Rails.configuration.x.oidc
 
     begin
-      # Fetch JWKS and decode with signature verification
-      jwks_response = Net::HTTP.get(URI(oidc.jwks_uri))
-      jwks = JSON.parse(jwks_response)
-      jwk_set = JWT::JWK::Set.new(jwks)
-      
-      decoded_token = JWT.decode(logout_token, nil, true, {
-        algorithms: ['RS256'],
-        jwks: jwk_set,
-        verify_iat: true
-      }).first
+      # Fetch JWKS (cached) and decode with signature verification via OidcService
+      decoded_token = OidcService.decode_and_verify(logout_token)
 
       # Replay prevention using jti
       jti = decoded_token["jti"]
