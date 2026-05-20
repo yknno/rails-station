@@ -242,4 +242,20 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :bad_request
   end
+
+  test "backchannel logout returns service unavailable when JWKS cannot be fetched" do
+    ActiveSession.create!(
+      sid: "session-123",
+      raw_id_token: "mock-id-token",
+      expires_at: 1.hour.from_now
+    )
+
+    Net::HTTP.stub(:get, ->(_uri) { raise StandardError, "network error" }) do
+      assert_no_difference "ActiveSession.count" do
+        post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
+      end
+    end
+
+    assert_response :service_unavailable
+  end
 end

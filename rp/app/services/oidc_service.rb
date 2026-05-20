@@ -1,4 +1,6 @@
 class OidcService
+  class JwksUnavailableError < StandardError; end
+
   class << self
     def fetch_jwks(force: false)
       if force
@@ -49,7 +51,7 @@ class OidcService
       end
 
       if set.nil?
-        raise JWT::DecodeError, "JWKS not available"
+        raise JwksUnavailableError, "JWKS not available from provider"
       end
 
       default_options = {

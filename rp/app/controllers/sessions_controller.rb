@@ -133,6 +133,9 @@ class SessionsController < ApplicationController
       else
         head :bad_request
       end
+    rescue OidcService::JwksUnavailableError => e
+      Rails.logger.error "Backchannel logout failed due to JWKS unavailability: #{e.message}"
+      head :service_unavailable
     rescue JWT::DecodeError => e
       Rails.logger.error "Backchannel logout token verification failed: #{e.message}"
       head :bad_request

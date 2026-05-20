@@ -40,6 +40,14 @@ class OidcServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "decode_and_verify raises JwksUnavailableError when JWKS cannot be retrieved" do
+    Net::HTTP.stub(:get, ->(_uri) { raise StandardError, "network error" }) do
+      assert_raises OidcService::JwksUnavailableError do
+        OidcService.decode_and_verify("mock-token")
+      end
+    end
+  end
+
   test "decode_and_verify forces JWKS refresh when token kid is missing from cached JWKS" do
     cache_store = {}
     # Seed cache with old JWKS (key-1)
