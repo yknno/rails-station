@@ -66,9 +66,8 @@ class OidcService
     private
 
     def kid_in_set?(kid, set)
-      jwks = fetch_jwks
-      return false if jwks.blank? || jwks["keys"].blank?
-      jwks["keys"].any? { |key| key["kid"] == kid }
+      return false if set.nil?
+      set.any? { |jwk| jwk.kid == kid }
     end
   end
 end
