@@ -10,11 +10,13 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_20_124216) do
-  create_table "revoked_sessions", force: :cascade do |t|
+ActiveRecord::Schema[8.1].define(version: 2026_05_20_125628) do
+  create_table "active_sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.text "raw_id_token"
     t.string "sid"
     t.datetime "updated_at", null: false
-    t.index ["sid"], name: "index_revoked_sessions_on_sid"
+    t.string "user_email"
+    t.index ["sid"], name: "index_active_sessions_on_sid"
   end
 end

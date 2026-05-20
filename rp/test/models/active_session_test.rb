@@ -1,6 +1,6 @@
 require "test_helper"
 
-class RevokedSessionTest < ActiveSupport::TestCase
+class ActiveSessionTest < ActiveSupport::TestCase
   # test "the truth" do
   #   assert true
   # end
