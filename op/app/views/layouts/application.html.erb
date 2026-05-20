@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "Op" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Op">
+    <meta name="mobile-web-app-capable" content="yes">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
+    <%#= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <%# Includes all stylesheet files in app/assets/stylesheets %>
+    <%= stylesheet_link_tag :app %>
+  </head>
+
+  <body>
+    <header style="padding: 1rem; background-color: #f8f9fa; border-bottom: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center;">
+      <strong>Rails OIDC Provider (OP)</strong>
+      <% if user_signed_in? %>
+        <div>
+          <span>Logged in as <%= current_user.email %></span> |
+          <%= link_to "Sign out", destroy_user_session_path %>
+        </div>
+      <% else %>
+        <%= link_to "Sign in", new_user_session_path %>
+      <% end %>
+    </header>
+
+    <main style="max-width: 800px; margin: 2rem auto; padding: 0 1rem;">
+      <% if notice %>
+        <div style="padding: 0.75rem 1.25rem; margin-bottom: 1rem; border: 1px solid transparent; border-radius: 0.25rem; color: #155724; background-color: #d4edda; border-color: #c3e6cb;">
+          <%= notice %>
+        </div>
+      <% end %>
+      <% if alert %>
+        <div style="padding: 0.75rem 1.25rem; margin-bottom: 1rem; border: 1px solid transparent; border-radius: 0.25rem; color: #721c24; background-color: #f8d7da; border-color: #f5c6cb;">
+          <%= alert %>
+        </div>
+      <% end %>
+
+      <%= yield %>
+    </main>
+  </body>
+</html>

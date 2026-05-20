@@ -51,5 +51,27 @@ services:
         condition: service_completed_successfully
     command: serve all --dev
 
+  op:
+    build:
+      context: ./op
+      dockerfile: Dockerfile
+    container_name: rails-station-op
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=mysql
+      - DB_USERNAME=root
+      - DB_PASSWORD=rootpassword
+      - DB_PORT=3306
+      - HYDRA_ADMIN_URL=http://hydra:4445
+      - RAILS_ENV=development
+    depends_on:
+      mysql:
+        condition: service_healthy
+      hydra:
+        condition: service_started
+
+
 volumes:
   mysql-data:
