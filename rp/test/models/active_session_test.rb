@@ -29,11 +29,13 @@ class ActiveSessionTest < ActiveSupport::TestCase
   test "should decode claims and email dynamically from raw_id_token" do
     session = ActiveSession.create!(
       sid: "test-sid",
+      sub: "123",
       expires_at: 1.hour.from_now,
       raw_id_token: @token
     )
     
     loaded_session = ActiveSession.find(session.id)
+    assert_equal "123", loaded_session.sub
     assert_equal @claims_hash, loaded_session.claims
     assert_equal "test@example.com", loaded_session.user_email
   end

@@ -36,6 +36,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
           created_session = ActiveSession.last
           assert_equal "session-123", created_session.sid
+          assert_equal "1", created_session.sub
           # Verify dynamic getters
           assert_equal "user@example.com", created_session.user_email
           assert_equal @mock_payload, created_session.claims
@@ -60,6 +61,37 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       "iat" => Time.now.to_i,
       "jti" => "logout-123",
       "sid" => "session-123",
+      "events" => {
+        "http://schemas.openid.net/event/backchannel-logout" => {}
+      }
+    }
+
+    Net::HTTP.stub(:get, @jwks_json) do
+      JWT::JWK::Set.stub(:new, Object.new) do
+        JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
+          assert_difference "ActiveSession.count", -1 do
+            post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
+          end
+        end
+      end
+    end
+
+    assert_response :success
+  end
+
+  test "backchannel logout by sub destroys active session when token is valid" do
+    ActiveSession.create!(
+      sub: "1",
+      raw_id_token: "mock-id-token",
+      expires_at: 1.hour.from_now
+    )
+
+    logout_claims = {
+      "iss" => "http://localhost:4444/",
+      "aud" => "rp-client",
+      "iat" => Time.now.to_i,
+      "jti" => "logout-124",
+      "sub" => "1",
       "events" => {
         "http://schemas.openid.net/event/backchannel-logout" => {}
       }

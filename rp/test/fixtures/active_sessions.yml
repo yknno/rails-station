@@ -2,8 +2,10 @@
 
 one:
   sid: MyString
+  sub: MyString
   raw_id_token: MyText
 
 two:
   sid: MyString
+  sub: MyString
   raw_id_token: MyText

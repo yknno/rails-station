@@ -41,10 +41,12 @@ class SessionsController < ApplicationController
     expires_at ||= 1.hour.from_now
     
     sid = decoded_payload['sid']
+    sub = decoded_payload['sub']
 
     # Create active session record
     active_session = ActiveSession.create!(
       sid: sid,
+      sub: sub,
       raw_id_token: raw_id_token,
       expires_at: expires_at
     )
@@ -121,12 +123,7 @@ class SessionsController < ApplicationController
           ActiveSession.where(sid: sid).destroy_all
           Rails.logger.info "Backchannel logout success: terminated active session sid #{sid}"
         elsif sub.present?
-          # Since we don't store user_email column anymore, we locate sessions by parsing raw_id_token
-          ActiveSession.all.each do |session|
-            if session.claims["sub"] == sub
-              session.destroy
-            end
-          end
+          ActiveSession.where(sub: sub).destroy_all
           Rails.logger.info "Backchannel logout success: terminated active sessions for sub #{sub}"
         end
         head :ok
