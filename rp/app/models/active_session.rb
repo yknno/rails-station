@@ -6,6 +6,13 @@ class ActiveSession < ApplicationRecord
     expires_at.present? && expires_at < Time.current
   end
 
+  # Class method to clean up expired active sessions periodically.
+  # TODO: Call this method periodically (e.g., via an hourly/daily Rake task or cron job in production)
+  # to keep the table size bounded and prevent database bloat.
+  def self.prune_expired
+    where("expires_at < ?", Time.current).delete_all
+  end
+
   def claims
     return {} if raw_id_token.blank?
     @claims ||= decode_and_verify_id_token

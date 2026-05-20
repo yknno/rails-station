@@ -45,4 +45,13 @@ class ActiveSessionTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "prune_expired deletes expired sessions and keeps active ones" do
+    ActiveSession.create!(sid: "expired-1", raw_id_token: "token-1", expires_at: 1.minute.ago)
+    ActiveSession.create!(sid: "active-1", raw_id_token: "token-2", expires_at: 1.minute.from_now)
+
+    assert_difference "ActiveSession.count", -1 do
+      ActiveSession.prune_expired
+    end
+  end
 end
