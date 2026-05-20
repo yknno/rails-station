@@ -27,7 +27,7 @@ class ConsentController < ApplicationController
           current_user
         )
         redirect_to accept_response["redirect_to"], allow_other_host: true
-      rescue Faraday::Error => e
+      rescue OryHydraService::Error => e
         redirect_to root_path, alert: "Error communicating with Hydra: #{e.message}"
       rescue => e
         redirect_to root_path, alert: "Error accepting consent request: #{e.message}"
@@ -56,7 +56,7 @@ class ConsentController < ApplicationController
           current_user
         )
         redirect_to accept_response["redirect_to"], allow_other_host: true
-      rescue Faraday::Error => e
+      rescue OryHydraService::Error => e
         redirect_to root_path, alert: "Error communicating with Hydra: #{e.message}"
       rescue => e
         redirect_to root_path, alert: "Error accepting consent request: #{e.message}"

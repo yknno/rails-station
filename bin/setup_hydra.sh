@@ -1,8 +1,10 @@
 #!/bin/bash
 set -e
 
-echo "Waiting for Ory Hydra Admin API to be ready..."
-until curl -s http://localhost:4445/health/ready > /dev/null; do
+ADMIN_URL=${HYDRA_ADMIN_URL:-"http://localhost:4445"}
+
+echo "Waiting for Ory Hydra Admin API at ${ADMIN_URL} to be ready..."
+until curl -s "${ADMIN_URL}/health/ready" > /dev/null; do
   sleep 1
 done
 echo "Ory Hydra Admin API is ready."
@@ -21,6 +23,6 @@ curl -s -X PUT \
     "backchannel_logout_uri": "http://rp:3001/auth/backchannel_logout",
     "backchannel_logout_session_required": true
   }' \
-  http://localhost:4445/admin/clients/rp-client > /dev/null
+  "${ADMIN_URL}/admin/clients/rp-client" > /dev/null
 
 echo "Ory Hydra client setup complete!"

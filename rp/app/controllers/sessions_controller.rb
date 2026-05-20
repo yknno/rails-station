@@ -15,19 +15,20 @@ class SessionsController < ApplicationController
       return
     end
 
+    oidc = Rails.configuration.x.oidc
+
     # Fetch JWKS and verify the ID token signature & standard claims
     begin
-      jwks_response = Net::HTTP.get(URI("http://hydra:4444/.well-known/jwks.json"))
+      jwks_response = Net::HTTP.get(URI(oidc.jwks_uri))
       jwks = JSON.parse(jwks_response)
       jwk_set = JWT::JWK::Set.new(jwks)
       
-      expected_aud = ENV.fetch("OIDC_CLIENT_ID") { "rp-client" }
       decoded_payload = JWT.decode(raw_id_token, nil, true, {
         algorithms: ['RS256'],
         jwks: jwk_set,
-        aud: expected_aud,
+        aud: oidc.client_id,
         verify_aud: true,
-        iss: "http://localhost:4444/",
+        iss: oidc.issuer,
         verify_iss: true
       }).first
     rescue JWT::DecodeError => e
@@ -41,13 +42,11 @@ class SessionsController < ApplicationController
     
     sid = decoded_payload['sid']
 
-    # Create active session record with pre-verified claims
+    # Create active session record
     active_session = ActiveSession.create!(
       sid: sid,
-      user_email: decoded_payload['email'] || auth.info.email,
       raw_id_token: raw_id_token,
-      expires_at: expires_at,
-      claims: decoded_payload
+      expires_at: expires_at
     )
     
     session[:active_session_id] = active_session.id
@@ -63,8 +62,14 @@ class SessionsController < ApplicationController
     reset_session
     
     if raw_id_token.present?
-      logout_url = "http://localhost:4444/oauth2/sessions/logout?id_token_hint=#{raw_id_token}&post_logout_redirect_uri=#{CGI.escape('http://localhost:3001/')}"
-      redirect_to logout_url, allow_other_host: true, notice: "Logged out from RP. Redirecting to OP logout..."
+      oidc = Rails.configuration.x.oidc
+      # Safe URI construction
+      uri = URI(oidc.logout_endpoint)
+      uri.query = URI.encode_www_form(
+        id_token_hint: raw_id_token,
+        post_logout_redirect_uri: oidc.post_logout_redirect_uri
+      )
+      redirect_to uri.to_s, allow_other_host: true, notice: "Logged out from RP. Redirecting to OP logout..."
     else
       redirect_to root_path, notice: "Logged out from RP."
     end
@@ -77,9 +82,11 @@ class SessionsController < ApplicationController
       return
     end
 
+    oidc = Rails.configuration.x.oidc
+
     begin
       # Fetch JWKS and decode with signature verification
-      jwks_response = Net::HTTP.get(URI("http://hydra:4444/.well-known/jwks.json"))
+      jwks_response = Net::HTTP.get(URI(oidc.jwks_uri))
       jwks = JSON.parse(jwks_response)
       jwk_set = JWT::JWK::Set.new(jwks)
       
@@ -88,8 +95,25 @@ class SessionsController < ApplicationController
         jwks: jwk_set
       }).first
 
+      # Replay prevention using jti
+      jti = decoded_token["jti"]
+      if jti.blank?
+        Rails.logger.error "Backchannel logout validation failed: missing jti claim"
+        head :bad_request
+        return
+      end
+
+      if Rails.cache.read("logout_jti:#{jti}")
+        Rails.logger.error "Backchannel logout validation failed: replayed jti #{jti}"
+        head :bad_request
+        return
+      end
+
       # Perform OIDC Back-Channel Logout 1.0 claims validation
       if validate_logout_token(decoded_token)
+        # Write to cache to prevent replay
+        Rails.cache.write("logout_jti:#{jti}", true, expires_in: 10.minutes)
+
         sid = decoded_token["sid"]
         sub = decoded_token["sub"]
 
@@ -97,7 +121,12 @@ class SessionsController < ApplicationController
           ActiveSession.where(sid: sid).destroy_all
           Rails.logger.info "Backchannel logout success: terminated active session sid #{sid}"
         elsif sub.present?
-          ActiveSession.where(user_email: sub).destroy_all
+          # Since we don't store user_email column anymore, we locate sessions by parsing raw_id_token
+          ActiveSession.all.each do |session|
+            if session.claims["sub"] == sub
+              session.destroy
+            end
+          end
           Rails.logger.info "Backchannel logout success: terminated active sessions for sub #{sub}"
         end
         head :ok
@@ -117,16 +146,17 @@ class SessionsController < ApplicationController
   private
 
   def validate_logout_token(claims)
+    oidc = Rails.configuration.x.oidc
+
     # 1. Verify issuer
-    if claims['iss'] != "http://localhost:4444/"
-      Rails.logger.error "Logout token validation failed: issuer mismatch. Expected http://localhost:4444/, got #{claims['iss']}"
+    if claims['iss'] != oidc.issuer
+      Rails.logger.error "Logout token validation failed: issuer mismatch. Expected #{oidc.issuer}, got #{claims['iss']}"
       return false
     end
     
     # 2. Verify audience
-    expected_aud = ENV.fetch("OIDC_CLIENT_ID") { "rp-client" }
-    if claims['aud'] != expected_aud && !Array(claims['aud']).include?(expected_aud)
-      Rails.logger.error "Logout token validation failed: audience mismatch. Expected #{expected_aud}, got #{claims['aud']}"
+    if claims['aud'] != oidc.client_id && !Array(claims['aud']).include?(oidc.client_id)
+      Rails.logger.error "Logout token validation failed: audience mismatch. Expected #{oidc.client_id}, got #{claims['aud']}"
       return false
     end
     

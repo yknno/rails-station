@@ -13,6 +13,11 @@ class ApplicationController < ActionController::Base
     end
   end
 
+  def reset_session
+    super
+    @current_active_session = nil
+  end
+
   private
 
   def load_active_session

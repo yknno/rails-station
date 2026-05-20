@@ -1,4 +1,6 @@
 class OryHydraService
+  class Error < StandardError; end
+
   def initialize
     @admin_url = ENV.fetch("HYDRA_ADMIN_URL") { "http://localhost:4445" }
     @conn = Faraday.new(url: @admin_url) do |faraday|
@@ -10,11 +12,7 @@ class OryHydraService
 
   # Login requests
   def get_login_request(challenge)
-    response = @conn.get("/admin/oauth2/auth/requests/login") do |req|
-      req.params['login_challenge'] = challenge
-    end
-    raise "Failed to get login request: #{response.status} #{response.body}" unless response.success?
-    response.body
+    request(:get, "/admin/oauth2/auth/requests/login", params: { login_challenge: challenge })
   end
 
   def accept_login_request(challenge, subject)
@@ -23,12 +21,7 @@ class OryHydraService
       remember: true,
       remember_for: 3600
     }
-    response = @conn.put("/admin/oauth2/auth/requests/login/accept") do |req|
-      req.params['login_challenge'] = challenge
-      req.body = payload
-    end
-    raise "Failed to accept login request: #{response.status} #{response.body}" unless response.success?
-    response.body
+    request(:put, "/admin/oauth2/auth/requests/login/accept", params: { login_challenge: challenge }, body: payload)
   end
 
   def reject_login_request(challenge, reason)
@@ -36,21 +29,12 @@ class OryHydraService
       error: "login_rejected",
       error_description: reason
     }
-    response = @conn.put("/admin/oauth2/auth/requests/login/reject") do |req|
-      req.params['login_challenge'] = challenge
-      req.body = payload
-    end
-    raise "Failed to reject login request: #{response.status} #{response.body}" unless response.success?
-    response.body
+    request(:put, "/admin/oauth2/auth/requests/login/reject", params: { login_challenge: challenge }, body: payload)
   end
 
   # Consent requests
   def get_consent_request(challenge)
-    response = @conn.get("/admin/oauth2/auth/requests/consent") do |req|
-      req.params['consent_challenge'] = challenge
-    end
-    raise "Failed to get consent request: #{response.status} #{response.body}" unless response.success?
-    response.body
+    request(:get, "/admin/oauth2/auth/requests/consent", params: { consent_challenge: challenge })
   end
 
   def accept_consent_request(challenge, granted_scopes, granted_audience, user)
@@ -73,12 +57,7 @@ class OryHydraService
         id_token: id_token_claims
       }
     }
-    response = @conn.put("/admin/oauth2/auth/requests/consent/accept") do |req|
-      req.params['consent_challenge'] = challenge
-      req.body = payload
-    end
-    raise "Failed to accept consent request: #{response.status} #{response.body}" unless response.success?
-    response.body
+    request(:put, "/admin/oauth2/auth/requests/consent/accept", params: { consent_challenge: challenge }, body: payload)
   end
 
   def reject_consent_request(challenge, reason)
@@ -86,29 +65,31 @@ class OryHydraService
       error: "consent_rejected",
       error_description: reason
     }
-    response = @conn.put("/admin/oauth2/auth/requests/consent/reject") do |req|
-      req.params['consent_challenge'] = challenge
-      req.body = payload
-    end
-    raise "Failed to reject consent request: #{response.status} #{response.body}" unless response.success?
-    response.body
+    request(:put, "/admin/oauth2/auth/requests/consent/reject", params: { consent_challenge: challenge }, body: payload)
   end
 
   # Logout requests
   def get_logout_request(challenge)
-    response = @conn.get("/admin/oauth2/auth/requests/logout") do |req|
-      req.params['logout_challenge'] = challenge
-    end
-    raise "Failed to get logout request: #{response.status} #{response.body}" unless response.success?
-    response.body
+    request(:get, "/admin/oauth2/auth/requests/logout", params: { logout_challenge: challenge })
   end
 
   def accept_logout_request(challenge)
-    response = @conn.put("/admin/oauth2/auth/requests/logout/accept") do |req|
-      req.params['logout_challenge'] = challenge
-      req.body = {}
+    request(:put, "/admin/oauth2/auth/requests/logout/accept", params: { logout_challenge: challenge }, body: {})
+  end
+
+  private
+
+  def request(method, path, params: {}, body: nil)
+    response = @conn.run_request(method, path, body, nil) do |req|
+      req.params.update(params) if params.present?
     end
-    raise "Failed to accept logout request: #{response.status} #{response.body}" unless response.success?
+
+    unless response.success?
+      raise Error, "Failed Hydra admin request to #{path}: #{response.status} #{response.body}"
+    end
+
     response.body
+  rescue Faraday::Error => e
+    raise Error, "Faraday communication error with Hydra: #{e.message}"
   end
 end

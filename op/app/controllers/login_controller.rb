@@ -33,7 +33,7 @@ class LoginController < ApplicationController
       begin
         accept_response = hydra.accept_login_request(challenge, current_user.id.to_s)
         redirect_to accept_response["redirect_to"], allow_other_host: true
-      rescue Faraday::Error => e
+      rescue OryHydraService::Error => e
         redirect_to root_path, alert: "Error communicating with Hydra: #{e.message}"
       rescue => e
         redirect_to root_path, alert: "Error accepting login request: #{e.message}"
@@ -58,7 +58,7 @@ class LoginController < ApplicationController
       reject_response = hydra.reject_login_request(challenge, "User cancelled login.")
       session.delete(:login_challenge)
       redirect_to reject_response["redirect_to"], allow_other_host: true
-    rescue Faraday::Error => e
+    rescue OryHydraService::Error => e
       redirect_to root_path, alert: "Error communicating with Hydra: #{e.message}"
     rescue => e
       redirect_to root_path, alert: "Error rejecting login request: #{e.message}"

@@ -94,7 +94,17 @@ services:
     volumes:
       - ./rp:/app
 
-
+  hydra-setup:
+    image: curlimages/curl:latest
+    container_name: rails-station-hydra-setup
+    environment:
+      - HYDRA_ADMIN_URL=http://hydra:4445
+    depends_on:
+      hydra:
+        condition: service_started
+    volumes:
+      - ./bin/setup_hydra.sh:/setup_hydra.sh
+    entrypoint: ["/bin/sh", "/setup_hydra.sh"]
 
 volumes:
   mysql-data:

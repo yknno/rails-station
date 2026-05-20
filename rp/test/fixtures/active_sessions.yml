@@ -2,10 +2,8 @@
 
 one:
   sid: MyString
-  user_email: MyString
   raw_id_token: MyText
 
 two:
   sid: MyString
-  user_email: MyString
   raw_id_token: MyText

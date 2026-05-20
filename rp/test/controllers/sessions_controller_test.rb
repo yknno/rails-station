@@ -1,5 +1,6 @@
 require "test_helper"
 require "jwt"
+require "minitest/mock"
 
 class SessionsControllerTest < ActionDispatch::IntegrationTest
   setup do
@@ -25,32 +26,32 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       credentials: { id_token: "mock-id-token" }
     })
 
-    stub_net_http_get(@jwks_json) do
-      stub_jwk_set(Object.new) do
-        stub_jwt_decode([@mock_payload, { "alg" => "RS256" }]) do
+    Net::HTTP.stub(:get, @jwks_json) do
+      JWT::JWK::Set.stub(:new, Object.new) do
+        # Assertions are kept inside the JWT.stub block so that dynamic model decode calls are also stubbed correctly.
+        JWT.stub(:decode, [@mock_payload, { "alg" => "RS256" }]) do
           assert_difference "ActiveSession.count", 1 do
             post "/auth/openid_connect/callback"
           end
+
+          created_session = ActiveSession.last
+          assert_equal "session-123", created_session.sid
+          # Verify dynamic getters
+          assert_equal "user@example.com", created_session.user_email
+          assert_equal @mock_payload, created_session.claims
         end
       end
     end
 
     assert_redirected_to root_path
     assert_equal "Logged in successfully via OIDC!", flash[:notice]
-
-    created_session = ActiveSession.last
-    assert_equal "session-123", created_session.sid
-    assert_equal "user@example.com", created_session.user_email
-    assert_equal @mock_payload, created_session.claims
   end
 
   test "backchannel logout destroys active session when token is valid" do
-    active_session = ActiveSession.create!(
+    ActiveSession.create!(
       sid: "session-123",
-      user_email: "user@example.com",
       raw_id_token: "mock-id-token",
-      expires_at: 1.hour.from_now,
-      claims: @mock_payload
+      expires_at: 1.hour.from_now
     )
 
     logout_claims = {
@@ -64,9 +65,9 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       }
     }
 
-    stub_net_http_get(@jwks_json) do
-      stub_jwk_set(Object.new) do
-        stub_jwt_decode([logout_claims, { "alg" => "RS256" }]) do
+    Net::HTTP.stub(:get, @jwks_json) do
+      JWT::JWK::Set.stub(:new, Object.new) do
+        JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
           assert_difference "ActiveSession.count", -1 do
             post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
           end
@@ -77,19 +78,63 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "backchannel logout fails when token has nonce claim" do
-    active_session = ActiveSession.create!(
+  test "backchannel logout prevents replay attacks with duplicate jti" do
+    ActiveSession.create!(
       sid: "session-123",
-      user_email: "user@example.com",
       raw_id_token: "mock-id-token",
-      expires_at: 1.hour.from_now,
-      claims: @mock_payload
+      expires_at: 1.hour.from_now
+    )
+
+    logout_claims = {
+      "iss" => "http://localhost:4444/",
+      "aud" => "rp-client",
+      "iat" => Time.now.to_i,
+      "jti" => "logout-unique-replay",
+      "sid" => "session-123",
+      "events" => {
+        "http://schemas.openid.net/event/backchannel-logout" => {}
+      }
+    }
+
+    # Use a local hash to stub Rails.cache since the test environment defaults to :null_store
+    cache_mock = {}
+    Rails.cache.stub(:read, ->(key) { cache_mock[key] }) do
+      Rails.cache.stub(:write, ->(key, val, options = nil) { cache_mock[key] = val }) do
+        # First request
+        Net::HTTP.stub(:get, @jwks_json) do
+          JWT::JWK::Set.stub(:new, Object.new) do
+            JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
+              post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
+              assert_response :success
+            end
+          end
+        end
+
+        # Second request with duplicate jti
+        Net::HTTP.stub(:get, @jwks_json) do
+          JWT::JWK::Set.stub(:new, Object.new) do
+            JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
+              post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
+              assert_response :bad_request
+            end
+          end
+        end
+      end
+    end
+  end
+
+  test "backchannel logout fails when token has nonce claim" do
+    ActiveSession.create!(
+      sid: "session-123",
+      raw_id_token: "mock-id-token",
+      expires_at: 1.hour.from_now
     )
 
     invalid_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
       "iat" => Time.now.to_i,
+      "jti" => "logout-nonce-fail",
       "sid" => "session-123",
       "nonce" => "some-nonce",
       "events" => {
@@ -97,9 +142,9 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       }
     }
 
-    stub_net_http_get(@jwks_json) do
-      stub_jwk_set(Object.new) do
-        stub_jwt_decode([invalid_claims, { "alg" => "RS256" }]) do
+    Net::HTTP.stub(:get, @jwks_json) do
+      JWT::JWK::Set.stub(:new, Object.new) do
+        JWT.stub(:decode, [invalid_claims, { "alg" => "RS256" }]) do
           assert_no_difference "ActiveSession.count" do
             post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
           end
@@ -108,58 +153,5 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :bad_request
-  end
-
-  private
-
-  def stub_net_http_get(return_value)
-    singleton = class << Net::HTTP; self; end
-    singleton.class_eval do
-      alias_method :original_get, :get rescue nil
-      define_method(:get) { |*args| return_value }
-    end
-    yield
-  ensure
-    singleton = class << Net::HTTP; self; end
-    singleton.class_eval do
-      if method_defined?(:original_get)
-        alias_method :get, :original_get
-        remove_method :original_get
-      end
-    end
-  end
-
-  def stub_jwk_set(return_value)
-    singleton = class << JWT::JWK::Set; self; end
-    singleton.class_eval do
-      alias_method :original_new, :new rescue nil
-      define_method(:new) { |*args| return_value }
-    end
-    yield
-  ensure
-    singleton = class << JWT::JWK::Set; self; end
-    singleton.class_eval do
-      if method_defined?(:original_new)
-        alias_method :new, :original_new
-        remove_method :original_new
-      end
-    end
-  end
-
-  def stub_jwt_decode(return_value)
-    singleton = class << JWT; self; end
-    singleton.class_eval do
-      alias_method :original_decode, :decode rescue nil
-      define_method(:decode) { |*args| return_value }
-    end
-    yield
-  ensure
-    singleton = class << JWT; self; end
-    singleton.class_eval do
-      if method_defined?(:original_decode)
-        alias_method :decode, :original_decode
-        remove_method :original_decode
-      end
-    end
   end
 end
