@@ -1,5 +1,6 @@
 require "test_helper"
 require "jwt"
+require "minitest/mock"
 
 class ActiveSessionTest < ActiveSupport::TestCase
   setup do
@@ -34,9 +35,14 @@ class ActiveSessionTest < ActiveSupport::TestCase
       raw_id_token: @token
     )
     
-    loaded_session = ActiveSession.find(session.id)
-    assert_equal "123", loaded_session.sub
-    assert_equal @claims_hash, loaded_session.claims
-    assert_equal "test@example.com", loaded_session.user_email
+    # Mock JWKS and stub decode to return our claims
+    Rails.cache.stub(:fetch, { keys: [] }) do
+      JWT.stub(:decode, [@claims_hash, { "alg" => "RS256" }]) do
+        loaded_session = ActiveSession.find(session.id)
+        assert_equal "123", loaded_session.sub
+        assert_equal @claims_hash, loaded_session.claims
+        assert_equal "test@example.com", loaded_session.user_email
+      end
+    end
   end
 end
