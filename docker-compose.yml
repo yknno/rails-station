@@ -66,6 +66,7 @@ services:
       - DB_PASSWORD=rootpassword
       - DB_PORT=3306
       - HYDRA_ADMIN_URL=http://hydra:4445
+      - HYDRA_PUBLIC_URL=http://localhost:4444
       - RAILS_ENV=development
     depends_on:
       mysql:

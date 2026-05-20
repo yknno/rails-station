@@ -12,4 +12,9 @@ class ApplicationController < ActionController::Base
       super
     end
   end
+
+  def after_sign_out_path_for(resource_or_scope)
+    hydra_public_url = ENV.fetch("HYDRA_PUBLIC_URL") { "http://localhost:4444" }
+    "#{hydra_public_url}/oauth2/sessions/logout"
+  end
 end
