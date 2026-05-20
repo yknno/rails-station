@@ -4,6 +4,7 @@ Rails.application.routes.draw do
 
   # Ory Hydra integration routes
   get "login", to: "login#new", as: :new_login
+  get "login/reject", to: "login#reject", as: :reject_login
   get "consent", to: "consent#new", as: :new_consent
   post "consent", to: "consent#create", as: :consent
   get "logout", to: "logout#new"

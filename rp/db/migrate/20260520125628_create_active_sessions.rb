@@ -6,6 +6,8 @@ class CreateActiveSessions < ActiveRecord::Migration[8.1]
       t.string :sid
       t.string :user_email
       t.text :raw_id_token
+      t.datetime :expires_at
+      t.text :claims
 
       t.timestamps
     end

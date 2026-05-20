@@ -6,16 +6,23 @@ class ApplicationController < ActionController::Base
   helper_method :current_active_session
 
   def current_active_session
-    @current_active_session ||= ActiveSession.find_by(id: session[:active_session_id]) if session[:active_session_id]
+    if session[:active_session_id].present?
+      @current_active_session ||= ActiveSession.find_by(id: session[:active_session_id])
+    else
+      nil
+    end
   end
 
   private
 
   def load_active_session
-    # If session is active in cookie but not in DB (deleted via Backchannel Logout), reset session
-    if session[:active_session_id].present? && current_active_session.nil?
-      reset_session
-      redirect_to root_path, alert: "Your session has been terminated by the identity provider."
+    if session[:active_session_id].present?
+      session_record = current_active_session
+      if session_record.nil? || session_record.expired?
+        session_record&.destroy
+        reset_session
+        redirect_to root_path, alert: "Your session has expired or has been terminated by the identity provider."
+      end
     end
   end
 end

@@ -84,7 +84,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - OIDC_CLIENT_ID=55710372-f47c-4c3e-9d0c-ef91ebde4af5
+      - OIDC_CLIENT_ID=rp-client
       - OIDC_CLIENT_SECRET=rp-client-secret
       - HYDRA_PUBLIC_HOST=hydra
       - RAILS_ENV=development

@@ -12,7 +12,9 @@
 
 ActiveRecord::Schema[8.1].define(version: 2026_05_20_125628) do
   create_table "active_sessions", force: :cascade do |t|
+    t.text "claims"
     t.datetime "created_at", null: false
+    t.datetime "expires_at"
     t.text "raw_id_token"
     t.string "sid"
     t.datetime "updated_at", null: false

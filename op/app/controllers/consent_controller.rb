@@ -24,9 +24,11 @@ class ConsentController < ApplicationController
           @challenge,
           @consent_request["requested_scope"],
           @consent_request["requested_access_token_audience"],
-          current_user.email
+          current_user
         )
         redirect_to accept_response["redirect_to"], allow_other_host: true
+      rescue Faraday::Error => e
+        redirect_to root_path, alert: "Error communicating with Hydra: #{e.message}"
       rescue => e
         redirect_to root_path, alert: "Error accepting consent request: #{e.message}"
       end
@@ -51,9 +53,11 @@ class ConsentController < ApplicationController
           challenge,
           consent_request["requested_scope"],
           consent_request["requested_access_token_audience"],
-          current_user.email
+          current_user
         )
         redirect_to accept_response["redirect_to"], allow_other_host: true
+      rescue Faraday::Error => e
+        redirect_to root_path, alert: "Error communicating with Hydra: #{e.message}"
       rescue => e
         redirect_to root_path, alert: "Error accepting consent request: #{e.message}"
       end

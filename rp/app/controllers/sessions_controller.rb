@@ -1,4 +1,5 @@
 require "net/http"
+require "jwt"
 
 class SessionsController < ApplicationController
   # Bypass CSRF check for callback and backchannel logout
@@ -8,21 +9,48 @@ class SessionsController < ApplicationController
   def create
     auth = request.env['omniauth.auth']
     
-    sid = nil
-    if auth.extra.present? && auth.extra.raw_info.present?
-      sid = auth.extra.raw_info[:sid] || auth.extra.raw_info['sid']
+    raw_id_token = auth.credentials&.id_token
+    if raw_id_token.blank?
+      redirect_to root_path, alert: "Authentication failed: Missing ID token."
+      return
     end
 
-    # Create a database-backed ActiveSession record
+    # Fetch JWKS and verify the ID token signature & standard claims
+    begin
+      jwks_response = Net::HTTP.get(URI("http://hydra:4444/.well-known/jwks.json"))
+      jwks = JSON.parse(jwks_response)
+      jwk_set = JWT::JWK::Set.new(jwks)
+      
+      expected_aud = ENV.fetch("OIDC_CLIENT_ID") { "rp-client" }
+      decoded_payload = JWT.decode(raw_id_token, nil, true, {
+        algorithms: ['RS256'],
+        jwks: jwk_set,
+        aud: expected_aud,
+        verify_aud: true,
+        iss: "http://localhost:4444/",
+        verify_iss: true
+      }).first
+    rescue JWT::DecodeError => e
+      redirect_to root_path, alert: "ID Token verification failed: #{e.message}"
+      return
+    end
+
+    # Extract expiration and OIDC session identifier (sid)
+    expires_at = Time.at(decoded_payload['exp']) if decoded_payload['exp'].present?
+    expires_at ||= 1.hour.from_now
+    
+    sid = decoded_payload['sid']
+
+    # Create active session record with pre-verified claims
     active_session = ActiveSession.create!(
       sid: sid,
-      user_email: auth.info.email,
-      raw_id_token: (auth.credentials.id_token if auth.credentials.present?)
+      user_email: decoded_payload['email'] || auth.info.email,
+      raw_id_token: raw_id_token,
+      expires_at: expires_at,
+      claims: decoded_payload
     )
     
-    # Store ONLY the reference ID in the cookie session
     session[:active_session_id] = active_session.id
-    
     redirect_to root_path, notice: "Logged in successfully via OIDC!"
   end
 
@@ -44,46 +72,82 @@ class SessionsController < ApplicationController
 
   def backchannel_logout
     logout_token = params[:logout_token]
-    if logout_token.present?
-      begin
-        decoded_token = nil
-        begin
-          jwks_response = Net::HTTP.get(URI("http://hydra:4444/.well-known/jwks.json"))
-          jwks = JSON.parse(jwks_response)
-          jwk_set = JWT::JWK::Set.new(jwks)
-          decoded_token = JWT.decode(logout_token, nil, true, { algorithms: ['RS256'], jwks: jwk_set }).first
-        rescue => e
-          Rails.logger.warn "JWKS verification failed, falling back to unverified decode: #{e.message}"
-          decoded_token = JWT.decode(logout_token, nil, false).first
-        end
+    if logout_token.blank?
+      head :bad_request
+      return
+    end
 
-        if decoded_token && decoded_token["events"]&.key?("http://schemas.openid.net/event/backchannel-logout")
-          sid = decoded_token["sid"]
-          sub = decoded_token["sub"]
+    begin
+      # Fetch JWKS and decode with signature verification
+      jwks_response = Net::HTTP.get(URI("http://hydra:4444/.well-known/jwks.json"))
+      jwks = JSON.parse(jwks_response)
+      jwk_set = JWT::JWK::Set.new(jwks)
+      
+      decoded_token = JWT.decode(logout_token, nil, true, {
+        algorithms: ['RS256'],
+        jwks: jwk_set
+      }).first
 
-          if sid.present?
-            # Destroy the active session by OIDC sid
-            ActiveSession.where(sid: sid).destroy_all
-            Rails.logger.info "Backchannel logout success: terminated active session sid #{sid}"
-          elsif sub.present?
-            ActiveSession.where(user_email: sub).destroy_all
-            Rails.logger.info "Backchannel logout success: terminated active sessions for sub #{sub}"
-          end
-          head :ok
-        else
-          Rails.logger.error "Backchannel logout failed: Invalid event payload #{decoded_token}"
-          head :bad_request
+      # Perform OIDC Back-Channel Logout 1.0 claims validation
+      if validate_logout_token(decoded_token)
+        sid = decoded_token["sid"]
+        sub = decoded_token["sub"]
+
+        if sid.present?
+          ActiveSession.where(sid: sid).destroy_all
+          Rails.logger.info "Backchannel logout success: terminated active session sid #{sid}"
+        elsif sub.present?
+          ActiveSession.where(user_email: sub).destroy_all
+          Rails.logger.info "Backchannel logout success: terminated active sessions for sub #{sub}"
         end
-      rescue => e
-        Rails.logger.error "Failed to process backchannel logout: #{e.message}"
+        head :ok
+      else
         head :bad_request
       end
-    else
+    rescue JWT::DecodeError => e
+      Rails.logger.error "Backchannel logout token verification failed: #{e.message}"
       head :bad_request
     end
   end
 
   def failure
     redirect_to root_path, alert: "Authentication failed: #{params[:message]}"
+  end
+
+  private
+
+  def validate_logout_token(claims)
+    # 1. Verify issuer
+    if claims['iss'] != "http://localhost:4444/"
+      Rails.logger.error "Logout token validation failed: issuer mismatch. Expected http://localhost:4444/, got #{claims['iss']}"
+      return false
+    end
+    
+    # 2. Verify audience
+    expected_aud = ENV.fetch("OIDC_CLIENT_ID") { "rp-client" }
+    if claims['aud'] != expected_aud && !Array(claims['aud']).include?(expected_aud)
+      Rails.logger.error "Logout token validation failed: audience mismatch. Expected #{expected_aud}, got #{claims['aud']}"
+      return false
+    end
+    
+    # 3. Verify events
+    unless claims['events']&.key?("http://schemas.openid.net/event/backchannel-logout")
+      Rails.logger.error "Logout token validation failed: missing backchannel-logout event claim"
+      return false
+    end
+    
+    # 4. Verify no nonce
+    if claims.key?('nonce')
+      Rails.logger.error "Logout token validation failed: contains prohibited nonce claim"
+      return false
+    end
+    
+    # 5. Verify sub or sid is present
+    if claims['sub'].blank? && claims['sid'].blank?
+      Rails.logger.error "Logout token validation failed: both sub and sid claims are missing"
+      return false
+    end
+    
+    true
   end
 end
