@@ -1,0 +1,32 @@
+<div style="background-color: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; padding: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 600px; margin: 0 auto;">
+  <h2 style="margin-top: 0; color: #333;">Authorize Application</h2>
+  <p>The application <strong><%= @client["client_name"].presence || @client["client_id"] %></strong> wants to access your account details.</p>
+
+  <h4 style="margin-bottom: 0.5rem; color: #555;">Requested Permissions (Scopes):</h4>
+  <ul style="background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 1rem 2rem; margin-top: 0; list-style-type: square;">
+    <% @requested_scope.each do |scope| %>
+      <li style="margin-bottom: 0.25rem;">
+        <code><%= scope %></code>
+        <% case scope %>
+        <% when "openid" %>
+          - Identity validation (OpenID Connect)
+        <% when "profile" %>
+          - Standard profile attributes
+        <% when "email" %>
+          - Your email address
+        <% when "offline_access" %>
+          - Keep session active offline (Refresh Token)
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+
+  <%= form_with url: consent_path, method: :post, local: true do |f| %>
+    <%= f.hidden_field :consent_challenge, value: @challenge %>
+
+    <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+      <%= f.submit "Authorize App (Accept)", name: "submit", value: "accept", style: "flex: 1; padding: 0.75rem 1rem; border: none; border-radius: 4px; background-color: #28a745; color: white; font-weight: bold; cursor: pointer;" %>
+      <%= f.submit "Deny Access (Reject)", name: "submit", value: "reject", style: "flex: 1; padding: 0.75rem 1rem; border: 1px solid #dc3545; border-radius: 4px; background-color: transparent; color: #dc3545; font-weight: bold; cursor: pointer;" %>
+    </div>
+  <% end %>
+</div>
