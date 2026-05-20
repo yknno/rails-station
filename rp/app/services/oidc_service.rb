@@ -4,7 +4,7 @@ class OidcService
   class << self
     def fetch_jwks(force: false)
       if force
-        # Rate limit forcing refresh to prevent DoS (max once every 1 minute)
+        # DoS攻撃を防ぐため、強制リフレッシュに対してレートリミットを適用（最大で1分間に1回まで）
         last_fetched = Rails.cache.read("oidc_jwks_fetched_at")
         if last_fetched.nil? || last_fetched < 1.minute.ago
           Rails.cache.delete("oidc_jwks")
@@ -33,7 +33,7 @@ class OidcService
     end
 
     def decode_and_verify(token, options = {})
-      # Extract kid from token header without verification
+      # トークンの署名検証を行わずにヘッダーから kid を抽出する
       begin
         header = JWT.decode(token, nil, false).last
         kid = header ? header["kid"] : nil
@@ -44,7 +44,7 @@ class OidcService
 
       set = jwk_set
 
-      # If the kid is not present in the current cached JWKS, clear cache and re-fetch (with rate limit)
+      # トークンの kid がキャッシュされた JWKS 内に見つからない場合、キャッシュをクリアして再取得を試みる（レートリミットあり）
       if kid.present? && !kid_in_set?(kid, set)
         Rails.logger.info "kid #{kid} not found in cached JWKS. Forcing rate-limited refresh..."
         set = jwk_set(force: true)

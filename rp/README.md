@@ -1,24 +1,45 @@
-# README
+# Relying Party (RP) - アプリケーション仕様
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+このディレクトリは、認証を受けるクライアント側アプリケーションである Relying Party（RP）の実装です。
+OmniAuth OIDC を用いて OIDC Provider (OP / Ory Hydra) から ID トークンを取得し、セッション管理を行います。
 
-Things you may want to cover:
+## 実装内容
 
-* Ruby version
+1. **JTI を利用したリプレイ攻撃防止 (JTI Replay Prevention)**:
+   * バックチャネルログアウト要求に含まれる各 `jti`（JWT ID）を一意キー制約を持つ `LoggedOutJti` テーブルに記録し、同一 JTI によるリクエストを拒否します。
+   * トークンの有効期限 (`exp`) を記録の保持期間とし、期限切れレコードを削除するためのクリーンアップメソッド `LoggedOutJti.prune_expired` を用意しています。
 
-* System dependencies
+2. **JWKS キャッシュと動的再取得**:
+   * OIDC プロバイダーの JWKS (JSON Web Key Set) を 24 時間キャッシュします。
+   * **未知の kid 検出時の対応**: キャッシュに存在しない `kid` (Key ID) を持つトークンを検出した際、キャッシュを無効化して JWKS を再取得します。
+   * **リクエストレートの制限**: 短時間での頻繁な JWKS 取得を防ぐため、再取得処理は最大で1分間に1回に制限されます。
 
-* Configuration
+3. **クレームの検証**:
+   * トークンの `iss`（発行元）、`aud`（対象クライアント）、および `iat`（発行時刻）を検証します。
+   * `iat` の検証 (`verify_iat: true`) により、許容誤差（±5分）を超える過去・未来の発行時刻を持つトークンを拒否します。
+   * バックチャネルログアウトトークンにおいて、`nonce` クレームの不在および所定のイベントが含まれていることを確認します。
 
-* Database creation
+4. **データ永続化時の情報保護**:
+   * セッション情報を記録する `active_sessions` テーブルにはメールアドレス等の個人識別情報 (PII) は保存せず、一意な `sid` (Session ID) および `sub` (Subject) のみを保持します。
+   * IDトークンのデコード結果はインスタンス変数にキャッシュ（メモライズ）して重複処理を避けるとともに、`reset_session` のオーバーライドによりセッション破棄時のクリアを保証します。
 
-* Database initialization
+5. **JWKS 取得失敗時のハンドリング**:
+   * プロバイダーから JWKS が取得できない場合は `JwksUnavailableError` を発生させます。
+   * バックチャネルログアウト処理においては、このエラーに対して `503 Service Unavailable` を返却し、呼び出し元へのリトライ要求とします。
 
-* How to run the test suite
+## 開発と実行
 
-* Services (job queues, cache servers, search engines, etc.)
+起動方法については、プロジェクトルートの [README.md](../README.md) を参照してください。
 
-* Deployment instructions
+### 単体・統合テストの実行
 
-* ...
+```bash
+docker compose exec rp bin/rails test
+```
+
+* テスト項目:
+  * JWKS が取得できない場合の一時的エラー (`503`) 返却
+  * 動的な `kid` 未検出時の再取得およびそのレートリミット
+  * 同一の `jti` を持つトークン（リプレイ）の排除
+  * クレーム（`iss`, `aud`, `iat`, `nonce` 等）の不正値検証
+  * 期限切れアクティブセッションのクリーンアップ (`ActiveSession.prune_expired`)
