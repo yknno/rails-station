@@ -128,28 +128,22 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       }
     }
 
-    # Use a local hash to stub Rails.cache since the test environment defaults to :null_store
-    cache_mock = {}
-    Rails.cache.stub(:read, ->(key) { cache_mock[key] }) do
-      Rails.cache.stub(:write, ->(key, val, options = nil) { cache_mock[key] = val }) do
-        # First request
-        Net::HTTP.stub(:get, @jwks_json) do
-          JWT::JWK::Set.stub(:new, Object.new) do
-            JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
-              post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
-              assert_response :success
-            end
-          end
+    # First request
+    Net::HTTP.stub(:get, @jwks_json) do
+      JWT::JWK::Set.stub(:new, Object.new) do
+        JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
+          post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
+          assert_response :success
         end
+      end
+    end
 
-        # Second request with duplicate jti
-        Net::HTTP.stub(:get, @jwks_json) do
-          JWT::JWK::Set.stub(:new, Object.new) do
-            JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
-              post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
-              assert_response :bad_request
-            end
-          end
+    # Second request with duplicate jti
+    Net::HTTP.stub(:get, @jwks_json) do
+      JWT::JWK::Set.stub(:new, Object.new) do
+        JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
+          post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
+          assert_response :bad_request
         end
       end
     end

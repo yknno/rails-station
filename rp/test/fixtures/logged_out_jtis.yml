@@ -1,0 +1,9 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  jti: unique_jti_one
+  expires_at: 2026-05-20 14:20:19
+
+two:
+  jti: unique_jti_two
+  expires_at: 2026-05-20 14:20:19

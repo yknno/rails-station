@@ -107,7 +107,7 @@ class SessionsController < ApplicationController
         return
       end
 
-      if Rails.cache.read("logout_jti:#{jti}")
+      if LoggedOutJti.exists?(jti: jti)
         Rails.logger.error "Backchannel logout validation failed: replayed jti #{jti}"
         head :bad_request
         return
@@ -115,8 +115,17 @@ class SessionsController < ApplicationController
 
       # Perform OIDC Back-Channel Logout 1.0 claims validation
       if validate_logout_token(decoded_token)
-        # Write to cache to prevent replay
-        Rails.cache.write("logout_jti:#{jti}", true, expires_in: 10.minutes)
+        # Calculate expiration time from token exp, defaulting to 24 hours
+        token_expires_at = decoded_token["exp"].present? ? Time.at(decoded_token["exp"]) : 24.hours.from_now
+
+        # Record JTI to database to prevent replay (handle race conditions with unique constraint rescue)
+        begin
+          LoggedOutJti.create!(jti: jti, expires_at: token_expires_at)
+        rescue ActiveRecord::RecordNotUnique
+          Rails.logger.error "Backchannel logout validation failed: replayed jti #{jti} (race condition)"
+          head :bad_request
+          return
+        end
 
         sid = decoded_token["sid"]
         sub = decoded_token["sub"]

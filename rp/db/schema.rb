@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_20_141157) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_20_142019) do
   create_table "active_sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "expires_at"
@@ -20,5 +20,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_20_141157) do
     t.datetime "updated_at", null: false
     t.index ["sid"], name: "index_active_sessions_on_sid"
     t.index ["sub"], name: "index_active_sessions_on_sub"
+  end
+
+  create_table "logged_out_jtis", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "expires_at"
+    t.string "jti"
+    t.datetime "updated_at", null: false
+    t.index ["expires_at"], name: "index_logged_out_jtis_on_expires_at"
+    t.index ["jti"], name: "index_logged_out_jtis_on_jti", unique: true
   end
 end
