@@ -6,6 +6,7 @@ Rails.application.routes.draw do
   get "login", to: "login#new", as: :new_login
   get "consent", to: "consent#new", as: :new_consent
   post "consent", to: "consent#create", as: :consent
+  get "logout", to: "logout#new"
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 

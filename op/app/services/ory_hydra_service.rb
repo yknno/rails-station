@@ -69,4 +69,17 @@ class OryHydraService
     raise "Failed to reject consent request: #{response.status} #{response.body}" unless response.success?
     response.body
   end
+
+  # Logout requests
+  def get_logout_request(challenge)
+    response = @conn.get("/admin/oauth2/auth/requests/logout", { logout_challenge: challenge })
+    raise "Failed to get logout request: #{response.status} #{response.body}" unless response.success?
+    response.body
+  end
+
+  def accept_logout_request(challenge)
+    response = @conn.put("/admin/oauth2/auth/requests/logout/accept?logout_challenge=#{CGI.escape(challenge)}", {})
+    raise "Failed to accept logout request: #{response.status} #{response.body}" unless response.success?
+    response.body
+  end
 end
