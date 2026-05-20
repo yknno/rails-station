@@ -180,7 +180,15 @@ class SessionsController < ApplicationController
       return false
     end
     
-    # 5. Verify sub or sid is present
+    # 5. Verify iat is close to the current time (e.g., within 5 minutes to prevent replay of old tokens)
+    iat = claims['iat'].to_i
+    now = Time.now.to_i
+    if iat.zero? || (iat - now).abs > 5.minutes.to_i
+      Rails.logger.error "Logout token validation failed: iat is not close to current time. iat: #{iat}, now: #{now}"
+      return false
+    end
+    
+    # 6. Verify sub or sid is present
     if claims['sub'].blank? && claims['sid'].blank?
       Rails.logger.error "Logout token validation failed: both sub and sid claims are missing"
       return false

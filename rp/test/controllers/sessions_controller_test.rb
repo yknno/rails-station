@@ -180,4 +180,66 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :bad_request
   end
+
+  test "backchannel logout fails when token iat is too far in the past" do
+    ActiveSession.create!(
+      sid: "session-123",
+      raw_id_token: "mock-id-token",
+      expires_at: 1.hour.from_now
+    )
+
+    invalid_claims = {
+      "iss" => "http://localhost:4444/",
+      "aud" => "rp-client",
+      "iat" => 6.minutes.ago.to_i,
+      "jti" => "logout-iat-past-fail",
+      "sid" => "session-123",
+      "events" => {
+        "http://schemas.openid.net/event/backchannel-logout" => {}
+      }
+    }
+
+    Net::HTTP.stub(:get, @jwks_json) do
+      JWT::JWK::Set.stub(:new, Object.new) do
+        JWT.stub(:decode, [invalid_claims, { "alg" => "RS256" }]) do
+          assert_no_difference "ActiveSession.count" do
+            post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
+          end
+        end
+      end
+    end
+
+    assert_response :bad_request
+  end
+
+  test "backchannel logout fails when token iat is too far in the future" do
+    ActiveSession.create!(
+      sid: "session-123",
+      raw_id_token: "mock-id-token",
+      expires_at: 1.hour.from_now
+    )
+
+    invalid_claims = {
+      "iss" => "http://localhost:4444/",
+      "aud" => "rp-client",
+      "iat" => 6.minutes.from_now.to_i,
+      "jti" => "logout-iat-future-fail",
+      "sid" => "session-123",
+      "events" => {
+        "http://schemas.openid.net/event/backchannel-logout" => {}
+      }
+    }
+
+    Net::HTTP.stub(:get, @jwks_json) do
+      JWT::JWK::Set.stub(:new, Object.new) do
+        JWT.stub(:decode, [invalid_claims, { "alg" => "RS256" }]) do
+          assert_no_difference "ActiveSession.count" do
+            post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
+          end
+        end
+      end
+    end
+
+    assert_response :bad_request
+  end
 end
