@@ -1,0 +1,14 @@
+# Version control
+.git
+.gitignore
+
+# Logs, temp files, and local storage / uploads
+# (these are also provided via the bind mount at runtime)
+/log/*
+/tmp/*
+/storage/*
+
+# Keep empty-directory placeholders in the image
+!/log/.keep
+!/tmp/.keep
+!/storage/.keep

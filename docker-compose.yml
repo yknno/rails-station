@@ -75,6 +75,12 @@ services:
         condition: service_started
     volumes:
       - ./op:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/up"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   rp:
     build:
@@ -90,18 +96,17 @@ services:
       - HYDRA_PUBLIC_HOST=hydra
       - RAILS_ENV=development
     depends_on:
-      hydra:
-        condition: service_started
+      hydra-setup:
+        condition: service_completed_successfully
     volumes:
       - ./rp:/app
       - rp-storage:/app/storage
-    command:
-      - bin/rails
-      - server
-      - "-b"
-      - "0.0.0.0"
-      - "-p"
-      - "3001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/up"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   hydra-setup:
     image: curlimages/curl:latest
