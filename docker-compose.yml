@@ -17,18 +17,18 @@ services:
       retries: 10
 
   hydra-migrate:
-    image: oryd/hydra:v2.2.0
+    image: oryd/hydra:v26.2.0
     container_name: rails-station-hydra-migrate
     environment:
       - DSN=mysql://root:rootpassword@tcp(mysql:3306)/hydra?parseTime=true
     depends_on:
       mysql:
         condition: service_healthy
-    command: migrate sql --yes "mysql://root:rootpassword@tcp(mysql:3306)/hydra?parseTime=true"
+    command: migrate sql up --yes "mysql://root:rootpassword@tcp(mysql:3306)/hydra?parseTime=true"
     restart: on-failure
 
   hydra:
-    image: oryd/hydra:v2.2.0
+    image: oryd/hydra:v26.2.0
     container_name: rails-station-hydra
     restart: always
     ports:
