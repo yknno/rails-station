@@ -54,4 +54,36 @@ class ActiveSessionTest < ActiveSupport::TestCase
       ActiveSession.prune_expired
     end
   end
+
+  test "create_from_id_token! creates session correctly" do
+    decoded_payload = {
+      "sub" => "123",
+      "sid" => "test-sid",
+      "exp" => Time.now.to_i + 3600
+    }
+    
+    assert_difference "ActiveSession.count", 1 do
+      ActiveSession.create_from_id_token!("mock-raw-id-token", decoded_payload)
+    end
+    
+    session = ActiveSession.last
+    assert_equal "123", session.sub
+    assert_equal "test-sid", session.sid
+    assert_equal "mock-raw-id-token", session.raw_id_token
+    assert_in_delta Time.at(decoded_payload["exp"]), session.expires_at, 2.seconds
+  end
+
+  test "create_from_id_token! falls back to 1 hour from now if exp is missing" do
+    decoded_payload = {
+      "sub" => "123",
+      "sid" => "test-sid"
+    }
+    
+    assert_difference "ActiveSession.count", 1 do
+      ActiveSession.create_from_id_token!("mock-raw-id-token", decoded_payload)
+    end
+    
+    session = ActiveSession.last
+    assert_in_delta 1.hour.from_now, session.expires_at, 5.seconds
+  end
 end

@@ -12,6 +12,16 @@ class ActiveSession < ApplicationRecord
     where("expires_at < ?", Time.current).delete_all
   end
 
+  def self.create_from_id_token!(raw_id_token, decoded_payload)
+    expires_at = decoded_payload['exp'].present? ? Time.at(decoded_payload['exp']) : 1.hour.from_now
+    create!(
+      sid: decoded_payload['sid'],
+      sub: decoded_payload['sub'],
+      raw_id_token: raw_id_token,
+      expires_at: expires_at
+    )
+  end
+
   def claims
     return {} if raw_id_token.blank?
     @claims ||= decode_and_verify_id_token
@@ -25,12 +35,7 @@ class ActiveSession < ApplicationRecord
 
   def decode_and_verify_id_token
     oidc = Rails.configuration.x.oidc
-    OidcService.decode_and_verify(raw_id_token, {
-      aud: oidc.client_id,
-      verify_aud: true,
-      iss: oidc.issuer,
-      verify_iss: true
-    })
+    Oidc::IdTokenDecoder.decode(raw_id_token, oidc)
   rescue => e
     Rails.logger.error "ActiveSession ID token verification failed: #{e.message}"
     {}

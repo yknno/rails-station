@@ -94,6 +94,12 @@ services:
         condition: service_started
     volumes:
       - ./rp:/app
+    command:
+      - bin/rails
+      - "-b"
+      - "0.0.0.0"
+      - "-p"
+      - "3001"
 
   hydra-setup:
     image: curlimages/curl:latest
