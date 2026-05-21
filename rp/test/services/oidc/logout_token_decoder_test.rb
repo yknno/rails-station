@@ -3,7 +3,6 @@ require "test_helper"
 class Oidc::LogoutTokenDecoderTest < ActiveSupport::TestCase
   setup do
     @jwks_hash = { "keys" => [] }
-    @jwks_json = @jwks_hash.to_json
     @jwks_uri = "http://localhost:4444/jwks"
     oidc_class = Struct.new(:issuer, :client_id, :jwks_uri)
     @oidc_config = oidc_class.new(
@@ -24,7 +23,7 @@ class Oidc::LogoutTokenDecoderTest < ActiveSupport::TestCase
         "http://schemas.openid.net/event/backchannel-logout" => {}
       }
     }
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT.stub(:decode, [claims, { "alg" => "RS256" }]) do
         decoded = Oidc::LogoutTokenDecoder.decode("mock-logout-token", @oidc_config)
         assert_equal claims, decoded
@@ -43,7 +42,7 @@ class Oidc::LogoutTokenDecoderTest < ActiveSupport::TestCase
         "http://schemas.openid.net/event/backchannel-logout" => {}
       }
     }
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT.stub(:decode, [invalid_claims, { "alg" => "RS256" }]) do
         assert_raises Oidc::ValidationError do
           Oidc::LogoutTokenDecoder.decode("mock-logout-token", @oidc_config)

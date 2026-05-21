@@ -1,5 +1,4 @@
 require "jwt"
-require "net/http"
 
 class ActiveSession < ApplicationRecord
   def expired?
@@ -22,22 +21,17 @@ class ActiveSession < ApplicationRecord
     )
   end
 
+  # raw_id_token はログイン時に omniauth_openid_connect が署名検証済み。
+  # 表示用にクレームを読み出すだけなので、ここでは署名の再検証はしない。
   def claims
     return {} if raw_id_token.blank?
-    @claims ||= decode_and_verify_id_token
+    @claims ||= JWT.decode(raw_id_token, nil, false).first
+  rescue JWT::DecodeError => e
+    Rails.logger.error "Failed to decode stored ID token: #{e.message}"
+    {}
   end
 
   def user_email
     claims["email"]
-  end
-
-  private
-
-  def decode_and_verify_id_token
-    oidc = Rails.configuration.x.oidc
-    Oidc::IdTokenDecoder.decode(raw_id_token, oidc)
-  rescue => e
-    Rails.logger.error "ActiveSession ID token verification failed: #{e.message}"
-    {}
   end
 end

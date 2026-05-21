@@ -3,7 +3,6 @@ require "test_helper"
 class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
   setup do
     @jwks_hash = { "keys" => [] }
-    @jwks_json = @jwks_hash.to_json
     @jwks_uri = "http://localhost:4444/jwks"
     oidc_class = Struct.new(:issuer, :client_id, :jwks_uri)
     @oidc_config = oidc_class.new(
@@ -31,7 +30,7 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
       }
     }
 
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
         assert_difference "ActiveSession.count", -1 do
           Oidc::BackchannelLogoutProcessor.process("mock-logout-token", @oidc_config)
@@ -58,7 +57,7 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
       }
     }
 
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
         assert_difference "ActiveSession.count", -1 do
           Oidc::BackchannelLogoutProcessor.process("mock-logout-token", @oidc_config)
@@ -85,7 +84,7 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
       }
     }
 
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
         # First execution
         Oidc::BackchannelLogoutProcessor.process("mock-logout-token", @oidc_config)

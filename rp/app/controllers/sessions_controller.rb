@@ -1,4 +1,3 @@
-require "net/http"
 require "jwt"
 
 class SessionsController < ApplicationController
@@ -8,31 +7,26 @@ class SessionsController < ApplicationController
 
   def create
     auth = request.env['omniauth.auth']
-    
+
     raw_id_token = auth.credentials&.id_token
     if raw_id_token.blank?
       redirect_to root_path, alert: "Authentication failed: Missing ID token."
       return
     end
 
-    oidc = Rails.configuration.x.oidc
-
-    # Oidc::IdTokenDecoder を使用して ID トークンの署名と標準クレームを検証します。
-    begin
-      decoded_payload = Oidc::IdTokenDecoder.decode(raw_id_token, oidc)
-    rescue Oidc::JwksUnavailableError => e
-      redirect_to root_path, alert: "Authentication failed: Identity provider keys are currently unavailable. Please try again later."
-      return
-    rescue JWT::DecodeError => e
-      redirect_to root_path, alert: "ID Token verification failed: #{e.message}"
-      return
-    end
+    # ID トークンの署名・iss/aud/nonce/exp は omniauth_openid_connect が
+    # コールバック処理中に検証済み。ここでは sid / sub / exp を取り出すために
+    # デコードするだけで、署名の再検証はしない。
+    id_token_claims = JWT.decode(raw_id_token, nil, false).first
 
     # アクティブセッションレコードを作成します。
-    active_session = ActiveSession.create_from_id_token!(raw_id_token, decoded_payload)
-    
+    active_session = ActiveSession.create_from_id_token!(raw_id_token, id_token_claims)
+
     session[:active_session_id] = active_session.id
     redirect_to root_path, notice: "Logged in successfully via OIDC!"
+  rescue JWT::DecodeError => e
+    Rails.logger.error "Failed to decode verified ID token: #{e.message}"
+    redirect_to root_path, alert: "Authentication failed: Invalid ID token."
   end
 
   def destroy

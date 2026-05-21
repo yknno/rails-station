@@ -14,13 +14,12 @@ class Oidc::TokenDecoderTest < ActiveSupport::TestCase
         }
       ]
     }
-    @jwks_json = @jwks_hash.to_json
     @jwks_uri = "http://localhost:4444/jwks"
   end
 
   test "decode_and_verify uses JWKS and decodes token successfully" do
     claims = { "iss" => "http://localhost:4444/", "aud" => "rp-client", "sub" => "123", "iat" => Time.now.to_i }
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT.stub(:decode, [claims, { "alg" => "RS256" }]) do
         decoded = Oidc::TokenDecoder.decode_and_verify("mock-token", @jwks_uri)
         assert_equal claims, decoded
@@ -29,7 +28,7 @@ class Oidc::TokenDecoderTest < ActiveSupport::TestCase
   end
 
   test "decode_and_verify raises JwksUnavailableError when JWKS cannot be retrieved" do
-    Net::HTTP.stub(:get, ->(_uri) { raise StandardError, "network error" }) do
+    Oidc::JwksProvider.stub(:http_get_jwks, nil) do
       assert_raises Oidc::JwksUnavailableError do
         Oidc::TokenDecoder.decode_and_verify("mock-token", @jwks_uri)
       end
@@ -53,14 +52,13 @@ class Oidc::TokenDecoderTest < ActiveSupport::TestCase
         }
       ]
     }
-    new_jwks_json = new_jwks_hash.to_json
     claims = { "iss" => "http://localhost:4444/", "aud" => "rp-client", "sub" => "123", "iat" => Time.now.to_i }
 
     Rails.cache.stub(:read, ->(key) { cache_store[key] }) do
       Rails.cache.stub(:write, ->(key, val, options = nil) { cache_store[key] = val }) do
         Rails.cache.stub(:delete, ->(key) { cache_store.delete(key) }) do
           Rails.cache.stub(:fetch, ->(key, options = nil, &block) { cache_store[key] ||= block.call }) do
-            Net::HTTP.stub(:get, new_jwks_json) do
+            Oidc::JwksProvider.stub(:http_get_jwks, new_jwks_hash) do
               JWT.stub(:decode, ->(*args) {
                 [claims, { "alg" => "RS256", "kid" => "key-2" }]
               }) do
@@ -86,7 +84,7 @@ class Oidc::TokenDecoderTest < ActiveSupport::TestCase
     Rails.cache.stub(:read, ->(key) { cache_store[key] }) do
       Rails.cache.stub(:write, ->(key, val, options = nil) { cache_store[key] = val }) do
         Rails.cache.stub(:fetch, ->(key, options = nil, &block) { cache_store[key] ||= block.call }) do
-          Net::HTTP.stub(:get, ->(uri) { get_called = true; @jwks_json }) do
+          Oidc::JwksProvider.stub(:http_get_jwks, ->(_uri) { get_called = true; @jwks_hash }) do
             JWT.stub(:decode, ->(*args) {
               [claims, { "alg" => "RS256", "kid" => "key-2" }]
             }) do

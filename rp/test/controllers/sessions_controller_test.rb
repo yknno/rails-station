@@ -4,7 +4,7 @@ require "minitest/mock"
 
 class SessionsControllerTest < ActionDispatch::IntegrationTest
   setup do
-    @jwks_json = { keys: [] }.to_json
+    @jwks_hash = { "keys" => [] }
 
     @mock_payload = {
       "iss" => "http://localhost:4444/",
@@ -26,45 +26,22 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       credentials: { id_token: "mock-id-token" }
     })
 
-    Net::HTTP.stub(:get, @jwks_json) do
-      JWT::JWK::Set.stub(:new, Object.new) do
-        # Assertions are kept inside the JWT.stub block so that dynamic model decode calls are also stubbed correctly.
-        JWT.stub(:decode, [@mock_payload, { "alg" => "RS256" }]) do
-          assert_difference "ActiveSession.count", 1 do
-            post "/auth/openid_connect/callback"
-          end
-
-          created_session = ActiveSession.last
-          assert_equal "session-123", created_session.sid
-          assert_equal "1", created_session.sub
-          # Verify dynamic getters
-          assert_equal "user@example.com", created_session.user_email
-          assert_equal @mock_payload, created_session.claims
-        end
+    # The ID token is already verified by omniauth_openid_connect; the controller
+    # only decodes it (without re-verifying) to extract sid / sub / exp.
+    JWT.stub(:decode, [@mock_payload, { "alg" => "RS256" }]) do
+      assert_difference "ActiveSession.count", 1 do
+        post "/auth/openid_connect/callback"
       end
+
+      created_session = ActiveSession.last
+      assert_equal "session-123", created_session.sid
+      assert_equal "1", created_session.sub
+      assert_equal "user@example.com", created_session.user_email
+      assert_equal @mock_payload, created_session.claims
     end
 
     assert_redirected_to root_path
     assert_equal "Logged in successfully via OIDC!", flash[:notice]
-  end
-
-  test "OIDC callback fails when JWKS cannot be fetched" do
-    OmniAuth.config.test_mode = true
-    OmniAuth.config.mock_auth[:openid_connect] = OmniAuth::AuthHash.new({
-      provider: "openid_connect",
-      uid: "1",
-      info: { email: "user@example.com" },
-      credentials: { id_token: "mock-id-token" }
-    })
-
-    Net::HTTP.stub(:get, ->(_uri) { raise StandardError, "network error" }) do
-      assert_no_difference "ActiveSession.count" do
-        post "/auth/openid_connect/callback"
-      end
-    end
-
-    assert_redirected_to root_path
-    assert_match /Identity provider keys are currently unavailable/, flash[:alert]
   end
 
   test "backchannel logout destroys active session when token is valid" do
@@ -85,7 +62,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       }
     }
 
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT::JWK::Set.stub(:new, Object.new) do
         JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
           assert_difference "ActiveSession.count", -1 do
@@ -116,7 +93,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       }
     }
 
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT::JWK::Set.stub(:new, Object.new) do
         JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
           assert_difference "ActiveSession.count", -1 do
@@ -148,7 +125,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     }
 
     # First request
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT::JWK::Set.stub(:new, Object.new) do
         JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
           post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
@@ -158,7 +135,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     end
 
     # Second request with duplicate jti
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT::JWK::Set.stub(:new, Object.new) do
         JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
           post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
@@ -187,7 +164,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       }
     }
 
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT::JWK::Set.stub(:new, Object.new) do
         JWT.stub(:decode, [invalid_claims, { "alg" => "RS256" }]) do
           assert_no_difference "ActiveSession.count" do
@@ -218,7 +195,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       }
     }
 
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT::JWK::Set.stub(:new, Object.new) do
         JWT.stub(:decode, [invalid_claims, { "alg" => "RS256" }]) do
           assert_no_difference "ActiveSession.count" do
@@ -249,7 +226,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       }
     }
 
-    Net::HTTP.stub(:get, @jwks_json) do
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT::JWK::Set.stub(:new, Object.new) do
         JWT.stub(:decode, [invalid_claims, { "alg" => "RS256" }]) do
           assert_no_difference "ActiveSession.count" do
@@ -269,7 +246,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       expires_at: 1.hour.from_now
     )
 
-    Net::HTTP.stub(:get, ->(_uri) { raise StandardError, "network error" }) do
+    Oidc::JwksProvider.stub(:http_get_jwks, nil) do
       assert_no_difference "ActiveSession.count" do
         post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
       end

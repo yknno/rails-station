@@ -27,23 +27,24 @@ class ActiveSessionTest < ActiveSupport::TestCase
     assert_not session.expired?
   end
 
-  test "should decode claims and email dynamically from raw_id_token" do
+  test "should decode claims and email from raw_id_token without re-verifying" do
     session = ActiveSession.create!(
       sid: "test-sid",
       sub: "123",
       expires_at: 1.hour.from_now,
       raw_id_token: @token
     )
-    
-    # Mock JWKS and stub decode to return our claims
-    Rails.cache.stub(:fetch, { keys: [] }) do
-      JWT.stub(:decode, [@claims_hash, { "alg" => "RS256" }]) do
-        loaded_session = ActiveSession.find(session.id)
-        assert_equal "123", loaded_session.sub
-        assert_equal @claims_hash, loaded_session.claims
-        assert_equal "test@example.com", loaded_session.user_email
-      end
-    end
+
+    loaded_session = ActiveSession.find(session.id)
+    assert_equal "123", loaded_session.sub
+    assert_equal @claims_hash, loaded_session.claims
+    assert_equal "test@example.com", loaded_session.user_email
+  end
+
+  test "claims returns empty hash when raw_id_token is not a valid JWT" do
+    session = ActiveSession.new(sid: "test-sid", raw_id_token: "not-a-jwt")
+    assert_equal({}, session.claims)
+    assert_nil session.user_email
   end
 
   test "prune_expired deletes expired sessions and keeps active ones" do
