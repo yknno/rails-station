@@ -94,8 +94,10 @@ services:
         condition: service_started
     volumes:
       - ./rp:/app
+      - rp-storage:/app/storage
     command:
       - bin/rails
+      - server
       - "-b"
       - "0.0.0.0"
       - "-p"
@@ -115,3 +117,4 @@ services:
 
 volumes:
   mysql-data:
+  rp-storage:
