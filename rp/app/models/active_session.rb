@@ -15,15 +15,17 @@ class ActiveSession < ApplicationRecord
   end
 
   def self.create_from_id_token!(raw_id_token, decoded_payload)
-    sub = decoded_payload['sub']
-    account = Account.find_or_create_by!(sub: sub)
-    expires_at = decoded_payload['exp'].present? ? Time.at(decoded_payload['exp']) : 1.hour.from_now
-    create!(
-      account: account,
-      sid: decoded_payload['sid'],
-      raw_id_token: raw_id_token,
-      expires_at: expires_at
-    )
+    transaction do
+      sub = decoded_payload['sub']
+      account = Account.find_or_initialize_by(sub: sub)
+      expires_at = decoded_payload['exp'].present? ? Time.at(decoded_payload['exp']) : 1.hour.from_now
+      create!(
+        account: account,
+        sid: decoded_payload['sid'],
+        raw_id_token: raw_id_token,
+        expires_at: expires_at
+      )
+    end
   end
 
   # raw_id_token はログイン時に omniauth_openid_connect が署名検証済み。

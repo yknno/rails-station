@@ -1,5 +1,5 @@
 module Oidc
   class JwksUnavailableError < StandardError; end
-  class ValidationError < JWT::DecodeError; end
-  class ReplayAttackError < ValidationError; end
+  class TokenValidationError < JWT::DecodeError; end
+  class ReplayAttackError < TokenValidationError; end
 end

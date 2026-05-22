@@ -56,6 +56,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     logout_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => Time.now.to_i,
       "jti" => "logout-123",
       "sid" => "session-123",
@@ -75,6 +76,8 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
+    assert_equal "no-store", response.headers["Cache-Control"]
+    assert_equal "no-cache", response.headers["Pragma"]
   end
 
   test "backchannel logout by sub destroys active session when token is valid" do
@@ -87,6 +90,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     logout_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => Time.now.to_i,
       "jti" => "logout-124",
       "sub" => "1",
@@ -119,6 +123,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     logout_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => Time.now.to_i,
       "jti" => "logout-unique-replay",
       "sid" => "session-123",
@@ -143,6 +148,8 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
         JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
           post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
           assert_response :bad_request
+          assert_equal "no-store", response.headers["Cache-Control"]
+          assert_equal "no-cache", response.headers["Pragma"]
         end
       end
     end
@@ -159,6 +166,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     invalid_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => Time.now.to_i,
       "jti" => "logout-nonce-fail",
       "sid" => "session-123",
@@ -179,6 +187,8 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :bad_request
+    assert_equal "no-store", response.headers["Cache-Control"]
+    assert_equal "no-cache", response.headers["Pragma"]
   end
 
   test "backchannel logout fails when token iat is too far in the past" do
@@ -192,6 +202,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     invalid_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => 6.minutes.ago.to_i,
       "jti" => "logout-iat-past-fail",
       "sid" => "session-123",
@@ -224,6 +235,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     invalid_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => 6.minutes.from_now.to_i,
       "jti" => "logout-iat-future-fail",
       "sid" => "session-123",
@@ -260,6 +272,8 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :service_unavailable
+    assert_equal "no-store", response.headers["Cache-Control"]
+    assert_equal "no-cache", response.headers["Pragma"]
   end
 
   test "OIDC callback creates new Account when it does not exist" do
@@ -293,6 +307,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     logout_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => Time.now.to_i,
       "jti" => "logout-123",
       "sid" => "session-123",

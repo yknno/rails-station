@@ -17,6 +17,30 @@ class LoginController < ApplicationController
       return
     end
 
+    # Check if prompt=login is requested
+    request_url = login_request["request_url"]
+    prompt_login = false
+    if request_url.present?
+      begin
+        uri = URI.parse(request_url)
+        params_hash = Rack::Utils.parse_query(uri.query || "")
+        prompt_param = params_hash["prompt"]
+        prompt_login = prompt_param.to_s.split(/\s+/).include?("login")
+      rescue => e
+        Rails.logger.error "Failed to parse prompt parameter from request_url: #{e.message}"
+      end
+    end
+
+    # Force re-authentication if prompt=login is requested and we haven't triggered sign out
+    # for this login challenge yet.
+    if prompt_login && session[:prompt_login_triggered_for] != challenge
+      session[:prompt_login_triggered_for] = challenge
+      sign_out(current_user) if user_signed_in?
+      session[:login_challenge] = challenge
+      redirect_to new_user_session_path
+      return
+    end
+
     # If hydra says we should skip (session exists in Hydra)
     if login_request["skip"]
       begin

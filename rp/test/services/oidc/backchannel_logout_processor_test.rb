@@ -24,6 +24,7 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
     logout_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => Time.now.to_i,
       "jti" => "logout-123",
       "sid" => "session-123",
@@ -51,6 +52,7 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
     logout_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => Time.now.to_i,
       "jti" => "logout-124",
       "sub" => "1",
@@ -79,6 +81,7 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
     logout_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => Time.now.to_i,
       "jti" => "logout-unique-replay",
       "sid" => "session-123",
@@ -111,6 +114,7 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
     logout_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => Time.now.to_i,
       "jti" => "logout-combo-match",
       "sid" => "session-123",
@@ -140,6 +144,7 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
     logout_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
+      "exp" => Time.now.to_i + 3600,
       "iat" => Time.now.to_i,
       "jti" => "logout-combo-mismatch",
       "sid" => "session-123",

@@ -17,6 +17,7 @@ class Oidc::LogoutTokenDecoderTest < ActiveSupport::TestCase
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
       "iat" => Time.now.to_i,
+      "exp" => (Time.now.to_i + 3600),
       "jti" => "logout-jti-123",
       "sid" => "session-123",
       "events" => {
@@ -31,7 +32,27 @@ class Oidc::LogoutTokenDecoderTest < ActiveSupport::TestCase
     end
   end
 
-  test "decode raises ValidationError on invalid claims" do
+  test "decode raises TokenValidationError when exp is missing" do
+    invalid_claims = {
+      "iss" => "http://localhost:4444/",
+      "aud" => "rp-client",
+      "iat" => Time.now.to_i,
+      "jti" => "logout-jti-123",
+      "sid" => "session-123",
+      "events" => {
+        "http://schemas.openid.net/event/backchannel-logout" => {}
+      }
+    }
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
+      JWT.stub(:decode, [invalid_claims, { "alg" => "RS256" }]) do
+        assert_raises Oidc::TokenValidationError do
+          Oidc::LogoutTokenDecoder.decode("mock-logout-token", @oidc_config)
+        end
+      end
+    end
+  end
+
+  test "decode raises TokenValidationError on invalid claims" do
     invalid_claims = {
       "iss" => "http://invalid-issuer.com/",
       "aud" => "rp-client",
@@ -44,14 +65,14 @@ class Oidc::LogoutTokenDecoderTest < ActiveSupport::TestCase
     }
     Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT.stub(:decode, [invalid_claims, { "alg" => "RS256" }]) do
-        assert_raises Oidc::ValidationError do
+        assert_raises Oidc::TokenValidationError do
           Oidc::LogoutTokenDecoder.decode("mock-logout-token", @oidc_config)
         end
       end
     end
   end
 
-  test "decode raises ValidationError when events is not a hash" do
+  test "decode raises TokenValidationError when events is not a hash" do
     invalid_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
@@ -62,14 +83,14 @@ class Oidc::LogoutTokenDecoderTest < ActiveSupport::TestCase
     }
     Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT.stub(:decode, [invalid_claims, { "alg" => "RS256" }]) do
-        assert_raises Oidc::ValidationError do
+        assert_raises Oidc::TokenValidationError do
           Oidc::LogoutTokenDecoder.decode("mock-logout-token", @oidc_config)
         end
       end
     end
   end
 
-  test "decode raises ValidationError when backchannel-logout event claim is not a hash" do
+  test "decode raises TokenValidationError when backchannel-logout event claim is not a hash" do
     invalid_claims = {
       "iss" => "http://localhost:4444/",
       "aud" => "rp-client",
@@ -82,7 +103,7 @@ class Oidc::LogoutTokenDecoderTest < ActiveSupport::TestCase
     }
     Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
       JWT.stub(:decode, [invalid_claims, { "alg" => "RS256" }]) do
-        assert_raises Oidc::ValidationError do
+        assert_raises Oidc::TokenValidationError do
           Oidc::LogoutTokenDecoder.decode("mock-logout-token", @oidc_config)
         end
       end

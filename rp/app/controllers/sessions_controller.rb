@@ -52,6 +52,9 @@ class SessionsController < ApplicationController
   end
 
   def backchannel_logout
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+
     logout_token = params[:logout_token]
     if logout_token.blank?
       head :bad_request
@@ -62,14 +65,12 @@ class SessionsController < ApplicationController
 
     begin
       Oidc::BackchannelLogoutProcessor.process(logout_token, oidc)
-      response.headers["Cache-Control"] = "no-store"
-      response.headers["Pragma"] = "no-cache"
       head :ok
     rescue Oidc::JwksUnavailableError => e
       Rails.logger.error "Backchannel logout failed due to JWKS unavailability: #{e.message}"
       head :service_unavailable
     rescue JWT::DecodeError => e
-      # Oidc::ValidationError / Oidc::ReplayAttackError are subclasses of JWT::DecodeError
+      # Oidc::TokenValidationError / Oidc::ReplayAttackError are subclasses of JWT::DecodeError
       Rails.logger.error "Backchannel logout token verification failed: #{e.message}"
       head :bad_request
     end

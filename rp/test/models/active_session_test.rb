@@ -90,4 +90,19 @@ class ActiveSessionTest < ActiveSupport::TestCase
     session = ActiveSession.last
     assert_in_delta 1.hour.from_now, session.expires_at, 5.seconds
   end
+
+  test "create_from_id_token! rolls back account creation if session creation fails" do
+    decoded_payload = {
+      "sub" => "brand-new-sub-rollback",
+      "sid" => "test-sid"
+    }
+
+    ActiveSession.stub(:create!, ->(*) { raise ActiveRecord::RecordInvalid.new(ActiveSession.new) }) do
+      assert_raises ActiveRecord::RecordInvalid do
+        ActiveSession.create_from_id_token!("mock-raw-id-token", decoded_payload)
+      end
+    end
+
+    assert_nil Account.find_by(sub: "brand-new-sub-rollback")
+  end
 end
