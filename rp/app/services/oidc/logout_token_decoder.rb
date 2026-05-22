@@ -28,10 +28,9 @@ module Oidc
         # 3. events クレームの検証 (Section 2.4, Item 5)
         # "http://schemas.openid.net/event/backchannel-logout" キーを持ち、値は JSON オブジェクトでなければならない
         # 
-        # 仕様との乖離 / 改善点:
+        # 設計上の判断:
         # - 仕様上、特定のイベント属性がない場合は値は「空の JSON オブジェクト {}」でなければならない (MUST be an empty JSON object {})。
-        #   現在のコードは単に Hash であることのみ検証しており、空であるかの確認は行っていない。
-        #   セキュリティ上、不要なプロパティが紛れ込まないように `.empty?` であることをチェックするとなお良い。
+        #   本実装では値が Hash であることのみ検証し、厳密な空判定（.empty?）は省略している。
         events = claims['events']
         unless events.is_a?(Hash) &&
                events.key?("http://schemas.openid.net/event/backchannel-logout") &&
