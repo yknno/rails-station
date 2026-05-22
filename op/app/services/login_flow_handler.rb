@@ -1,3 +1,4 @@
+# Ory Hydra と連携し、ログインフロー（ユーザー認証の検証および受諾・拒否）のビジネスロジックを管理するサービス
 class LoginFlowHandler
   attr_reader :challenge, :current_user, :session, :hydra
 
@@ -8,26 +9,34 @@ class LoginFlowHandler
     @hydra = hydra
   end
 
+  # 新規ログイン要求の判定処理
   def handle_new
     if challenge.blank?
       return Result.error("Missing login challenge.")
     end
 
     begin
+      # Ory Hydra Admin API からログイン要求の詳細情報を取得
       login_request = hydra.get_login_request(challenge)
     rescue => e
       return Result.error("Error communicating with Hydra: #{e.message}")
     end
 
-    # Force re-authentication if prompt=login is requested and we haven't triggered sign out
-    # for this login challenge yet.
+    # 1. prompt=login 要求時の強制再認証 (仕様への準拠)
+    # 参照: OIDC Core 1.0 Section 3.1.2.1 (Authentication Request) の prompt パラメータ仕様:
+    # - `prompt` に `login` が指定されている場合、OP はエンドユーザーの再認証を行う「べきである (MUST)」
+    # - ただし、同一の `challenge` に対して何度もサインアウトさせると無限ループになるため、
+    #   未適用の場合のみ `force_sign_out: true` で Devise ログイン画面へ強制遷移させる
     if login_request.prompt_login? && session[:prompt_login_triggered_for] != challenge
       session[:prompt_login_triggered_for] = challenge
       session[:login_challenge] = challenge
       return Result.redirect_to_new_session(force_sign_out: true)
     end
 
-    # If hydra says we should skip (session exists in Hydra)
+    # 2. Ory Hydra のセッションによる自動スキップ判定
+    # 参照: Ory Hydra 仕様
+    # - ユーザーが過去にログインし、Hydra 側に有効なセッションがある場合は `skip: true` となる
+    # - この場合、ログインUIを表示せずに以前のユーザー識別子 (`subject`) で自動承諾する
     if login_request.skip?
       begin
         accept_response = hydra.accept_login_request(challenge, login_request.subject)
@@ -37,7 +46,8 @@ class LoginFlowHandler
       end
     end
 
-    # If user is already signed in on our Rails application
+    # 3. Railsアプリ（OP）側でログイン済みの判定
+    # - ユーザーが Rails アプリ（Devise）にすでにログインしている場合、そのユーザー ID を subject として Hydra に通知し、ログインを承諾する
     if current_user.present?
       begin
         accept_response = hydra.accept_login_request(challenge, current_user.id.to_s)
@@ -49,11 +59,15 @@ class LoginFlowHandler
       end
     end
 
-    # Otherwise, store challenge in session and redirect to Devise sign-in
+    # 4. 未認証の場合
+    # - challenge をセッションに一時保存し、Devise のログイン画面へ遷移させる
     session[:login_challenge] = challenge
     Result.redirect_to_new_session(force_sign_out: false)
   end
 
+  # ログイン拒否処理
+  # 参照: Ory Hydra API /oauth2/auth/requests/login/reject
+  # - ユーザーが認証をキャンセルした場合に呼び出され、Hydra 経由でクライアントにエラーを通知する
   def handle_reject
     if challenge.blank?
       return Result.error("Missing login challenge.")
