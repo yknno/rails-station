@@ -5,6 +5,7 @@ require "minitest/mock"
 class SessionsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @jwks_hash = { "keys" => [] }
+    @account = Account.create!(sub: "1")
 
     @mock_payload = {
       "iss" => "http://localhost:4444/",
@@ -46,6 +47,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
   test "backchannel logout destroys active session when token is valid" do
     ActiveSession.create!(
+      account: @account,
       sid: "session-123",
       raw_id_token: "mock-id-token",
       expires_at: 1.hour.from_now
@@ -77,7 +79,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
   test "backchannel logout by sub destroys active session when token is valid" do
     ActiveSession.create!(
-      sub: "1",
+      account: @account,
       raw_id_token: "mock-id-token",
       expires_at: 1.hour.from_now
     )
@@ -108,6 +110,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
   test "backchannel logout prevents replay attacks with duplicate jti" do
     ActiveSession.create!(
+      account: @account,
       sid: "session-123",
       raw_id_token: "mock-id-token",
       expires_at: 1.hour.from_now
@@ -147,6 +150,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
   test "backchannel logout fails when token has nonce claim" do
     ActiveSession.create!(
+      account: @account,
       sid: "session-123",
       raw_id_token: "mock-id-token",
       expires_at: 1.hour.from_now
@@ -179,6 +183,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
   test "backchannel logout fails when token iat is too far in the past" do
     ActiveSession.create!(
+      account: @account,
       sid: "session-123",
       raw_id_token: "mock-id-token",
       expires_at: 1.hour.from_now
@@ -210,6 +215,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
   test "backchannel logout fails when token iat is too far in the future" do
     ActiveSession.create!(
+      account: @account,
       sid: "session-123",
       raw_id_token: "mock-id-token",
       expires_at: 1.hour.from_now
@@ -241,6 +247,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
   test "backchannel logout returns service unavailable when JWKS cannot be fetched" do
     ActiveSession.create!(
+      account: @account,
       sid: "session-123",
       raw_id_token: "mock-id-token",
       expires_at: 1.hour.from_now
@@ -253,5 +260,78 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :service_unavailable
+  end
+
+  test "OIDC callback creates new Account when it does not exist" do
+    OmniAuth.config.test_mode = true
+    OmniAuth.config.mock_auth[:openid_connect] = OmniAuth::AuthHash.new({
+      provider: "openid_connect",
+      uid: "2",
+      info: { email: "new@example.com" },
+      credentials: { id_token: "mock-id-token" }
+    })
+
+    new_payload = @mock_payload.merge("sub" => "new-sub", "email" => "new@example.com")
+    
+    JWT.stub(:decode, [new_payload, { "alg" => "RS256" }]) do
+      assert_difference "Account.count", 1 do
+        assert_difference "ActiveSession.count", 1 do
+          post "/auth/openid_connect/callback"
+        end
+      end
+    end
+  end
+
+  test "backchannel logout destroys active sessions but keeps Account record" do
+    ActiveSession.create!(
+      account: @account,
+      sid: "session-123",
+      raw_id_token: "mock-id-token",
+      expires_at: 1.hour.from_now
+    )
+
+    logout_claims = {
+      "iss" => "http://localhost:4444/",
+      "aud" => "rp-client",
+      "iat" => Time.now.to_i,
+      "jti" => "logout-123",
+      "sid" => "session-123",
+      "events" => {
+        "http://schemas.openid.net/event/backchannel-logout" => {}
+      }
+    }
+
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
+      JWT::JWK::Set.stub(:new, Object.new) do
+        JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
+          assert_difference "ActiveSession.count", -1 do
+            assert_no_difference "Account.count" do
+              post "/auth/backchannel_logout", params: { logout_token: "mock-logout-token" }
+            end
+          end
+        end
+      end
+    end
+  test "confirm_destroy redirects to root when guest" do
+    get "/logout"
+    assert_redirected_to root_path
+  end
+
+  test "confirm_destroy renders successfully when logged in" do
+    OmniAuth.config.test_mode = true
+    OmniAuth.config.mock_auth[:openid_connect] = OmniAuth::AuthHash.new({
+      provider: "openid_connect",
+      uid: "1",
+      info: { email: "user@example.com" },
+      credentials: { id_token: "mock-id-token" }
+    })
+
+    JWT.stub(:decode, [@mock_payload, { "alg" => "RS256" }]) do
+      post "/auth/openid_connect/callback"
+    end
+
+    get "/logout"
+    assert_response :success
+    assert_select "h1", "Sign out from RP"
   end
 end

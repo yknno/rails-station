@@ -2,10 +2,10 @@
 
 one:
   sid: MyString
-  sub: MyString
+  account: one
   raw_id_token: MyText
 
 two:
   sid: MyString
-  sub: MyString
+  account: two
   raw_id_token: MyText

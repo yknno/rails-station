@@ -3,7 +3,7 @@ class ApplicationController < ActionController::Base
   allow_browser versions: :modern
 
   before_action :load_active_session
-  helper_method :current_active_session
+  helper_method :current_active_session, :current_account
 
   def current_active_session
     if session[:active_session_id].present?
@@ -11,6 +11,10 @@ class ApplicationController < ActionController::Base
     else
       nil
     end
+  end
+
+  def current_account
+    current_active_session&.account
   end
 
   def reset_session

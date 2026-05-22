@@ -1,0 +1,5 @@
+one:
+  sub: MyStringOne
+
+two:
+  sub: MyStringTwo

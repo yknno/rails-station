@@ -1,6 +1,9 @@
 require "jwt"
 
 class ActiveSession < ApplicationRecord
+  belongs_to :account
+  delegate :sub, to: :account
+
   def expired?
     expires_at.present? && expires_at < Time.current
   end
@@ -12,10 +15,12 @@ class ActiveSession < ApplicationRecord
   end
 
   def self.create_from_id_token!(raw_id_token, decoded_payload)
+    sub = decoded_payload['sub']
+    account = Account.find_or_create_by!(sub: sub)
     expires_at = decoded_payload['exp'].present? ? Time.at(decoded_payload['exp']) : 1.hour.from_now
     create!(
+      account: account,
       sid: decoded_payload['sid'],
-      sub: decoded_payload['sub'],
       raw_id_token: raw_id_token,
       expires_at: expires_at
     )

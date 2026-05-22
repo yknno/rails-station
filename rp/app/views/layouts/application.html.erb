@@ -25,9 +25,9 @@
   <body>
     <header style="padding: 1rem; background-color: #f8f9fa; border-bottom: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
       <strong>Rails Relying Party (RP)</strong>
-      <% if session[:user_email] %>
+      <% if current_active_session %>
         <div>
-          <span>Logged in as <%= session[:user_email] %></span>
+          <span>Logged in as <%= current_active_session.user_email %></span>
         </div>
       <% end %>
     </header>

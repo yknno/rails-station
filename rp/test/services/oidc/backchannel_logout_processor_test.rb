@@ -10,10 +10,12 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
       "rp-client",
       @jwks_uri
     )
+    @account = Account.create!(sub: "1")
   end
 
   test "process destroys active session by sid when token is valid" do
     ActiveSession.create!(
+      account: @account,
       sid: "session-123",
       raw_id_token: "mock-id-token",
       expires_at: 1.hour.from_now
@@ -41,7 +43,7 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
 
   test "process destroys active session by sub when token is valid" do
     ActiveSession.create!(
-      sub: "1",
+      account: @account,
       raw_id_token: "mock-id-token",
       expires_at: 1.hour.from_now
     )
@@ -68,6 +70,7 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
 
   test "process prevents replay attacks with duplicate jti" do
     ActiveSession.create!(
+      account: @account,
       sid: "session-123",
       raw_id_token: "mock-id-token",
       expires_at: 1.hour.from_now

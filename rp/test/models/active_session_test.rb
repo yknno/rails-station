@@ -4,6 +4,7 @@ require "minitest/mock"
 
 class ActiveSessionTest < ActiveSupport::TestCase
   setup do
+    @account = Account.create!(sub: "123")
     @claims_hash = { "email" => "test@example.com", "name" => "Test User", "sub" => "123" }
     # Generate a dummy HS256-signed JWT token for testing
     @token = JWT.encode(@claims_hash, "secret", "HS256")
@@ -11,6 +12,7 @@ class ActiveSessionTest < ActiveSupport::TestCase
 
   test "should be expired when expires_at is in the past" do
     session = ActiveSession.new(
+      account: @account,
       sid: "test-sid",
       expires_at: 1.minute.ago,
       raw_id_token: @token
@@ -20,6 +22,7 @@ class ActiveSessionTest < ActiveSupport::TestCase
 
   test "should not be expired when expires_at is in the future" do
     session = ActiveSession.new(
+      account: @account,
       sid: "test-sid",
       expires_at: 10.minutes.from_now,
       raw_id_token: @token
@@ -29,8 +32,8 @@ class ActiveSessionTest < ActiveSupport::TestCase
 
   test "should decode claims and email from raw_id_token without re-verifying" do
     session = ActiveSession.create!(
+      account: @account,
       sid: "test-sid",
-      sub: "123",
       expires_at: 1.hour.from_now,
       raw_id_token: @token
     )
@@ -42,14 +45,14 @@ class ActiveSessionTest < ActiveSupport::TestCase
   end
 
   test "claims returns empty hash when raw_id_token is not a valid JWT" do
-    session = ActiveSession.new(sid: "test-sid", raw_id_token: "not-a-jwt")
+    session = ActiveSession.new(account: @account, sid: "test-sid", raw_id_token: "not-a-jwt")
     assert_equal({}, session.claims)
     assert_nil session.user_email
   end
 
   test "prune_expired deletes expired sessions and keeps active ones" do
-    ActiveSession.create!(sid: "expired-1", raw_id_token: "token-1", expires_at: 1.minute.ago)
-    ActiveSession.create!(sid: "active-1", raw_id_token: "token-2", expires_at: 1.minute.from_now)
+    ActiveSession.create!(account: @account, sid: "expired-1", raw_id_token: "token-1", expires_at: 1.minute.ago)
+    ActiveSession.create!(account: @account, sid: "active-1", raw_id_token: "token-2", expires_at: 1.minute.from_now)
 
     assert_difference "ActiveSession.count", -1 do
       ActiveSession.prune_expired

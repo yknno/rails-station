@@ -27,8 +27,13 @@ module Oidc
           ActiveSession.where(sid: sid).destroy_all
           Rails.logger.info "Backchannel logout success: terminated active session sid #{sid}"
         elsif sub.present?
-          ActiveSession.where(sub: sub).destroy_all
-          Rails.logger.info "Backchannel logout success: terminated active sessions for sub #{sub}"
+          account = Account.find_by(sub: sub)
+          if account
+            account.active_sessions.destroy_all
+            Rails.logger.info "Backchannel logout success: terminated active sessions for sub #{sub}"
+          else
+            Rails.logger.info "Backchannel logout: no account found for sub #{sub}"
+          end
         end
       end
     end
