@@ -4,70 +4,37 @@ class ConsentController < ApplicationController
 
   def new
     @challenge = params[:consent_challenge]
-    if @challenge.blank?
-      redirect_to root_path, alert: "Missing consent challenge."
-      return
-    end
+    handler = ConsentFlowHandler.new(challenge: @challenge, current_user: current_user)
+    result = handler.handle_new
 
-    hydra = OryHydraService.new
-    begin
-      @consent_request = hydra.get_consent_request(@challenge)
-    rescue => e
-      redirect_to root_path, alert: "Error communicating with Hydra: #{e.message}"
-      return
-    end
-
-    # If hydra says we should skip consent screen
-    if @consent_request["skip"]
-      begin
-        accept_response = hydra.accept_consent_request(
-          @challenge,
-          @consent_request["requested_scope"],
-          @consent_request["requested_access_token_audience"],
-          current_user
-        )
-        redirect_to accept_response["redirect_to"], allow_other_host: true
-      rescue OryHydraService::Error => e
-        redirect_to root_path, alert: "Error communicating with Hydra: #{e.message}"
-      rescue => e
-        redirect_to root_path, alert: "Error accepting consent request: #{e.message}"
+    if result.success?
+      if result.action == :redirect_to_hydra
+        redirect_to result.redirect_to, allow_other_host: true
+      elsif result.action == :render_consent
+        @consent_request = result.consent_request
+        @client = @consent_request["client"]
+        @requested_scope = @consent_request["requested_scope"]
+        @requested_audience = @consent_request["requested_access_token_audience"]
       end
-      return
+    else
+      redirect_to root_path, alert: result.error_message
     end
-
-    @client = @consent_request["client"]
-    @requested_scope = @consent_request["requested_scope"]
-    @requested_audience = @consent_request["requested_access_token_audience"]
   end
 
   def create
     challenge = params[:consent_challenge]
-    hydra = OryHydraService.new
+    handler = ConsentFlowHandler.new(challenge: challenge, current_user: current_user)
 
-    if params[:submit] == "accept"
-      begin
-        # Fetch the originally requested scopes and audience from the request to grant them
-        consent_request = hydra.get_consent_request(challenge)
-        
-        accept_response = hydra.accept_consent_request(
-          challenge,
-          consent_request["requested_scope"],
-          consent_request["requested_access_token_audience"],
-          current_user
-        )
-        redirect_to accept_response["redirect_to"], allow_other_host: true
-      rescue OryHydraService::Error => e
-        redirect_to root_path, alert: "Error communicating with Hydra: #{e.message}"
-      rescue => e
-        redirect_to root_path, alert: "Error accepting consent request: #{e.message}"
-      end
+    result = if params[:submit] == "accept"
+               handler.handle_accept
+             else
+               handler.handle_reject
+             end
+
+    if result.success?
+      redirect_to result.redirect_to, allow_other_host: true
     else
-      begin
-        reject_response = hydra.reject_consent_request(challenge, "User denied consent.")
-        redirect_to reject_response["redirect_to"], allow_other_host: true
-      rescue => e
-        redirect_to root_path, alert: "Error rejecting consent request: #{e.message}"
-      end
+      redirect_to root_path, alert: result.error_message
     end
   end
 end

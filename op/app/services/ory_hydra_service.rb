@@ -12,7 +12,8 @@ class OryHydraService
 
   # Login requests
   def get_login_request(challenge)
-    request(:get, "/admin/oauth2/auth/requests/login", params: { login_challenge: challenge })
+    raw = request(:get, "/admin/oauth2/auth/requests/login", params: { login_challenge: challenge })
+    LoginRequest.new(raw)
   end
 
   def accept_login_request(challenge, subject)

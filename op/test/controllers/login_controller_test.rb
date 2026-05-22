@@ -15,7 +15,7 @@ class LoginControllerTest < ActionDispatch::IntegrationTest
 
   test "should redirect to devise sign in when login challenge is present and user not authenticated" do
     mock_service = Minitest::Mock.new
-    mock_service.expect :get_login_request, { "skip" => false }, ["test-challenge"]
+    mock_service.expect :get_login_request, OryHydraService::LoginRequest.new({ "skip" => false }), ["test-challenge"]
 
     OryHydraService.stub :new, mock_service do
       get "/login", params: { login_challenge: "test-challenge" }
@@ -29,7 +29,7 @@ class LoginControllerTest < ActionDispatch::IntegrationTest
     sign_in @user
 
     mock_service = Minitest::Mock.new
-    mock_service.expect :get_login_request, { "skip" => false }, ["test-challenge"]
+    mock_service.expect :get_login_request, OryHydraService::LoginRequest.new({ "skip" => false }), ["test-challenge"]
     mock_service.expect :accept_login_request, { "redirect_to" => "http://hydra/redirect" }, ["test-challenge", @user.id.to_s]
 
     OryHydraService.stub :new, mock_service do
@@ -56,7 +56,7 @@ class LoginControllerTest < ActionDispatch::IntegrationTest
     sign_in @user
 
     mock_service = Minitest::Mock.new
-    mock_service.expect :get_login_request, { "skip" => false, "request_url" => "http://hydra/auth?prompt=login" }, ["test-challenge"]
+    mock_service.expect :get_login_request, OryHydraService::LoginRequest.new({ "skip" => false, "request_url" => "http://hydra/auth?prompt=login" }), ["test-challenge"]
 
     OryHydraService.stub :new, mock_service do
       get "/login", params: { login_challenge: "test-challenge" }
@@ -68,8 +68,8 @@ class LoginControllerTest < ActionDispatch::IntegrationTest
 
   test "should not force re-authentication when prompt=login is requested but user authenticated after challenge start" do
     mock_service = Minitest::Mock.new
-    mock_service.expect :get_login_request, { "skip" => false, "request_url" => "http://hydra/auth?prompt=login" }, ["test-challenge"]
-    mock_service.expect :get_login_request, { "skip" => false, "request_url" => "http://hydra/auth?prompt=login" }, ["test-challenge"]
+    mock_service.expect :get_login_request, OryHydraService::LoginRequest.new({ "skip" => false, "request_url" => "http://hydra/auth?prompt=login" }), ["test-challenge"]
+    mock_service.expect :get_login_request, OryHydraService::LoginRequest.new({ "skip" => false, "request_url" => "http://hydra/auth?prompt=login" }), ["test-challenge"]
     mock_service.expect :accept_login_request, { "redirect_to" => "http://hydra/redirect" }, ["test-challenge", @user.id.to_s]
 
     OryHydraService.stub :new, mock_service do

@@ -7,45 +7,25 @@ class SessionsController < ApplicationController
 
   def create
     auth = request.env['omniauth.auth']
-
-    raw_id_token = auth.credentials&.id_token
-    if raw_id_token.blank?
-      redirect_to root_path, alert: "Authentication failed: Missing ID token."
-      return
-    end
-
-    # ID トークンの署名・iss/aud/nonce/exp は omniauth_openid_connect が
-    # コールバック処理中に検証済み。ここでは sid / sub / exp を取り出すために
-    # デコードするだけで、署名の再検証はしない。
-    id_token_claims = JWT.decode(raw_id_token, nil, false).first
-
-    # アクティブセッションレコードを作成します。
-    active_session = ActiveSession.create_from_id_token!(raw_id_token, id_token_claims)
+    active_session = Oidc::SessionManager.handle_callback(auth, Rails.configuration.x.oidc)
 
     session[:active_session_id] = active_session.id
     redirect_to root_path, notice: "Logged in successfully via OIDC!"
-  rescue JWT::DecodeError => e
-    Rails.logger.error "Failed to decode verified ID token: #{e.message}"
+  rescue Oidc::TokenValidationError => e
+    Rails.logger.error e.message
     redirect_to root_path, alert: "Authentication failed: Invalid ID token."
   end
 
   def destroy
     active_session = ActiveSession.find_by(id: session[:active_session_id]) if session[:active_session_id]
-    raw_id_token = active_session&.raw_id_token
+    logout_url = Oidc::SessionManager.logout_url(active_session, Rails.configuration.x.oidc)
     
     # データベースのアクティブセッションレコードを削除
     active_session&.destroy
     reset_session
     
-    if raw_id_token.present?
-      oidc = Rails.configuration.x.oidc
-      # 安全な URI 構築
-      uri = URI(oidc.logout_endpoint)
-      uri.query = URI.encode_www_form(
-        id_token_hint: raw_id_token,
-        post_logout_redirect_uri: oidc.post_logout_redirect_uri
-      )
-      redirect_to uri.to_s, allow_other_host: true, notice: "Logged out from RP. Redirecting to OP logout..."
+    if logout_url.present?
+      redirect_to logout_url, allow_other_host: true, notice: "Logged out from RP. Redirecting to OP logout..."
     else
       redirect_to root_path, notice: "Logged out from RP."
     end
