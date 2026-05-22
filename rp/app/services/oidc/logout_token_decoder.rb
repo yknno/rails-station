@@ -26,13 +26,12 @@ module Oidc
         end
 
         # 3. events クレームの検証 (Section 2.4, Item 5)
-        # "http://schemas.openid.net/event/backchannel-logout" キーを持ち、値は JSON オブジェクトでなければならない
-        # (仕様上、特定のイベント属性がない場合は「空の JSON オブジェクト {}」であることが定義されていますが、
-        # 本実装では Hash であることのみ検証しています)
+        # "http://schemas.openid.net/event/backchannel-logout" キーを持ち、値は空の JSON オブジェクト {} でなければならない
         events = claims['events']
         unless events.is_a?(Hash) &&
                events.key?("http://schemas.openid.net/event/backchannel-logout") &&
-               events["http://schemas.openid.net/event/backchannel-logout"].is_a?(Hash)
+               events["http://schemas.openid.net/event/backchannel-logout"].is_a?(Hash) &&
+               events["http://schemas.openid.net/event/backchannel-logout"].empty?
           raise TokenValidationError, "Logout token validation failed: invalid events claim structure"
         end
 
