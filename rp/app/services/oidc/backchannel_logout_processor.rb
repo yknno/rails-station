@@ -16,7 +16,7 @@ module Oidc
         end
 
         # トークンの exp から有効期限を算出し、未設定の場合はデフォルトで 24 時間に設定
-        # (すでに失効したトークンの無駄なDB保存を防ぐため、この時刻以降のデータはバッチ処理等で削除可能にするため)
+        # (失効したトークンをデータベースから後続のバッチ処理等で削除できるようにするため)
         token_expires_at = decoded_token["exp"].present? ? Time.at(decoded_token["exp"]) : 24.hours.from_now
 
         # リプレイ攻撃防止のために JTI をデータベースに記録

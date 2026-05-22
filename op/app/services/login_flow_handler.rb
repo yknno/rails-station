@@ -25,8 +25,8 @@ class LoginFlowHandler
     # 1. prompt=login 要求時の強制再認証 (仕様への準拠)
     # 参照: OIDC Core 1.0 Section 3.1.2.1 (Authentication Request) の prompt パラメータ仕様:
     # - `prompt` に `login` が指定されている場合、OP はエンドユーザーの再認証を行う「べきである (MUST)」
-    # - ただし、同一の `challenge` に対して何度もサインアウトさせると無限ループになるため、
-    #   未適用の場合のみ `force_sign_out: true` で Devise ログイン画面へ強制遷移させる
+    # - ただし、同一の `challenge` に対して再認証処理が無限ループすることを防ぐため、
+    #   未適用の場合のみ `force_sign_out: true` とします。
     if login_request.prompt_login? && session[:prompt_login_triggered_for] != challenge
       session[:prompt_login_triggered_for] = challenge
       session[:login_challenge] = challenge

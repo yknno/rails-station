@@ -11,19 +11,13 @@ module Oidc
     class << self
       # JWKS をフェッチしキャッシュする
       # 
-      # セキュリティ対策 (DoS・過負荷防止):
-      # - 不正な `kid` を含んだ JWT トークンを大量に送りつけられると、キャッシュミスが発生し
-      #   JWKS の再フェッチ処理が連続で発生して OP および RP の過負荷（DoS）を引き起こす可能性がある。
-      #   そのため、`force: true` による強制リフレッシュ要求には 1 分間のレートリミットを課す。
-      #
-      # 可用性対策 (skip_nil):
-      # - 一時的なネットワーク障害によって JWKS の取得に失敗（nil が返却）した場合、
-      #   その `nil` をキャッシュしてしまうと、キャッシュの有効期間（24時間）の間、
-      #   トークン検証が一切行えなくなる。これを防ぐため `skip_nil: true` を設定し、
-      #   取得成功時のみキャッシュに書き込む。
+      # - 不正な `kid` による連続した再フェッチ要求（過負荷）を防ぐため、
+      #   `force: true` による強制リフレッシュには 1 分間のレートリミットを適用します。
+      # - 一時的なネットワーク障害等で JWKS 取得に失敗した場合に nil がキャッシュされるのを防ぐため、
+      #   `skip_nil: true` を指定し、取得成功時のみキャッシュを更新します。
       def fetch_jwks(jwks_uri, force: false)
         if force
-          # DoS攻撃を防ぐため、強制リフレッシュに対してレートリミットを適用（最大で1分間に1回まで）
+          # 強制リフレッシュに対してレートリミットを適用（最大で1分間に1回まで）
           last_fetched = Rails.cache.read("oidc_jwks_fetched_at")
           if last_fetched.nil? || last_fetched < 1.minute.ago
             Rails.cache.delete("oidc_jwks")
@@ -33,7 +27,7 @@ module Oidc
           end
         end
 
-        # 24時間キャッシュする。取得失敗時はキャッシュしない設計
+        # 24時間キャッシュする。取得失敗時はキャッシュに書き込まない。
         Rails.cache.fetch("oidc_jwks", expires_in: 24.hours, skip_nil: true) do
           Rails.cache.write("oidc_jwks_fetched_at", Time.current)
           http_get_jwks(jwks_uri)

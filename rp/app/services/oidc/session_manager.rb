@@ -4,12 +4,8 @@ module Oidc
     class << self
       # コールバック受信時のセッション作成処理
       # 参照: OpenID Connect Core 1.0 Section 3.1.2.5 (Successful Authentication Response)
-      # - `omniauth_openid_connect` が事前に Token Endpoint から取得・検証した結果を受け取る
-      # 
-      # 設計上の判断:
-      # - `JWT.decode(..., nil, false)` を使用して署名検証を行わずに ID Token をデコードし、Claims を抽出している。
-      #   これは前段の `omniauth_openid_connect` ライブラリ内部で既に署名・検証（iss, aud, exp, nonce 等）が完了している前提のため、
-      #   この層では二重の署名検証は行わず、単にデコードのみを実施してセッション作成に必要な claims 情報を抽出する設計としている。
+      # - 前段の `omniauth_openid_connect` ライブラリで署名および主要クレーム（iss, aud, exp, nonce）の
+      #   検証が完了していることを前提として、ここではデコード処理のみを行って Claims を抽出しています。
       def handle_callback(auth, oidc_config)
         raw_id_token = auth.credentials&.id_token
         if raw_id_token.blank?
