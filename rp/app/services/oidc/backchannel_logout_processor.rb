@@ -23,7 +23,10 @@ module Oidc
         sid = decoded_token["sid"]
         sub = decoded_token["sub"]
 
-        if sid.present?
+        if sid.present? && sub.present?
+          ActiveSession.joins(:account).where(sid: sid, accounts: { sub: sub }).destroy_all
+          Rails.logger.info "Backchannel logout success: terminated active session sid #{sid} and sub #{sub}"
+        elsif sid.present?
           ActiveSession.where(sid: sid).destroy_all
           Rails.logger.info "Backchannel logout success: terminated active session sid #{sid}"
         elsif sub.present?

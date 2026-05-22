@@ -15,8 +15,11 @@ module Oidc
         end
 
         # 3. events の検証
-        unless claims['events']&.key?("http://schemas.openid.net/event/backchannel-logout")
-          raise ValidationError, "Logout token validation failed: missing backchannel-logout event claim"
+        events = claims['events']
+        unless events.is_a?(Hash) &&
+               events.key?("http://schemas.openid.net/event/backchannel-logout") &&
+               events["http://schemas.openid.net/event/backchannel-logout"].is_a?(Hash)
+          raise ValidationError, "Logout token validation failed: invalid events claim structure"
         end
 
         # 4. nonce が含まれていないことの検証

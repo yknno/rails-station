@@ -99,4 +99,62 @@ class Oidc::BackchannelLogoutProcessorTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "process destroys session identified by sid and sub combination when both are present and match" do
+    ActiveSession.create!(
+      account: @account,
+      sid: "session-123",
+      raw_id_token: "mock-id-token",
+      expires_at: 1.hour.from_now
+    )
+
+    logout_claims = {
+      "iss" => "http://localhost:4444/",
+      "aud" => "rp-client",
+      "iat" => Time.now.to_i,
+      "jti" => "logout-combo-match",
+      "sid" => "session-123",
+      "sub" => "1",
+      "events" => {
+        "http://schemas.openid.net/event/backchannel-logout" => {}
+      }
+    }
+
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
+      JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
+        assert_difference "ActiveSession.count", -1 do
+          Oidc::BackchannelLogoutProcessor.process("mock-logout-token", @oidc_config)
+        end
+      end
+    end
+  end
+
+  test "process does not destroy session when sid matches but sub does not match" do
+    ActiveSession.create!(
+      account: @account,
+      sid: "session-123",
+      raw_id_token: "mock-id-token",
+      expires_at: 1.hour.from_now
+    )
+
+    logout_claims = {
+      "iss" => "http://localhost:4444/",
+      "aud" => "rp-client",
+      "iat" => Time.now.to_i,
+      "jti" => "logout-combo-mismatch",
+      "sid" => "session-123",
+      "sub" => "different-sub-value",
+      "events" => {
+        "http://schemas.openid.net/event/backchannel-logout" => {}
+      }
+    }
+
+    Oidc::JwksProvider.stub(:http_get_jwks, @jwks_hash) do
+      JWT.stub(:decode, [logout_claims, { "alg" => "RS256" }]) do
+        assert_no_difference "ActiveSession.count" do
+          Oidc::BackchannelLogoutProcessor.process("mock-logout-token", @oidc_config)
+        end
+      end
+    end
+  end
 end

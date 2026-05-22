@@ -62,6 +62,8 @@ class SessionsController < ApplicationController
 
     begin
       Oidc::BackchannelLogoutProcessor.process(logout_token, oidc)
+      response.headers["Cache-Control"] = "no-store"
+      response.headers["Pragma"] = "no-cache"
       head :ok
     rescue Oidc::JwksUnavailableError => e
       Rails.logger.error "Backchannel logout failed due to JWKS unavailability: #{e.message}"

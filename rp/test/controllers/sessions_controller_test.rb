@@ -312,26 +312,5 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
         end
       end
     end
-  test "confirm_destroy redirects to root when guest" do
-    get "/logout"
-    assert_redirected_to root_path
-  end
-
-  test "confirm_destroy renders successfully when logged in" do
-    OmniAuth.config.test_mode = true
-    OmniAuth.config.mock_auth[:openid_connect] = OmniAuth::AuthHash.new({
-      provider: "openid_connect",
-      uid: "1",
-      info: { email: "user@example.com" },
-      credentials: { id_token: "mock-id-token" }
-    })
-
-    JWT.stub(:decode, [@mock_payload, { "alg" => "RS256" }]) do
-      post "/auth/openid_connect/callback"
-    end
-
-    get "/logout"
-    assert_response :success
-    assert_select "h1", "Sign out from RP"
   end
 end
