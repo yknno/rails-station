@@ -1,4 +1,4 @@
-# Rails Station: OIDC & Single Sign-Out Demo
+# [WIP] Rails Station: OIDC & Single Sign-Out Demo
 
 OIDC (OpenID Connect) プロバイダー（OP）とメインターゲットアプリケーションである Relying Party（RP）を組み合わせた、認証およびシングルサインアウト（Single Sign-Out / Back-channel Logout）の検証用サンドボックスプロジェクトです。
 
